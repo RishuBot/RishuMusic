@@ -2,7 +2,7 @@ from typing import Union
 
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from VIPMUSIC import app
+from SHUKLAMUSIC import app
 
 def first_page(_):
         controll_button = [InlineKeyboardButton(text="ᴍᴇɴᴜ", callback_data=f"settingsback_helper"), InlineKeyboardButton(text="ɴᴇxᴛ", callback_data=f"dilXaditi")]

@@ -35,14 +35,14 @@ def second_page(_):
 
 
 def help_pannel(_, START: Union[bool, int] = None):
-    first = [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data=f"close")]
+    first = [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data=f"cloyse")]
     second = [
         InlineKeyboardButton(
             text=_["BACK_BUTTON"],
             callback_data=f"settingsback_helper",
         ),
         InlineKeyboardButton(
-            text=_["CLOSEMENU_BUTTON"], callback_data=f"close"
+            text=_["CLOSEMENU_BUTTON"], callback_data=f"cloyse"
         ),
     ]
     mark = second if START else first

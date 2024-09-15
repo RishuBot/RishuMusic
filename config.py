@@ -16,7 +16,7 @@ BOT_TOKEN = getenv("BOT_TOKEN")
 # -------------------------------------------------------
 OWNER_USERNAME = getenv("OWNER_USERNAME","Rishu1286")
 
-OWNER2_ID = int(getenv("OWNER2_ID", 7501185146))
+OWNER2_ID = int(getenv("OWNER2_ID", 6632677860))
 # --------------------------------------------------------
 BOT_USERNAME = getenv("BOT_USERNAME" , "RishuXmusicXbot")
 # --------------------------------------------------------
@@ -69,8 +69,8 @@ GIT_TOKEN = getenv(
 
 # ------------------------------------------------------------------------
 # -------------------------------------------------------------------------
-SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/ur_rishu_143")
-SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/ur_support07")
+SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/GODXNEXU")
+SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/gOdxnexuchat")
 # ------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------
 

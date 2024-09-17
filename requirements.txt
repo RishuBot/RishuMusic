@@ -31,7 +31,7 @@ lexica-api
 motor 
 MukeshAPI
 numpy
-openai==0.28.0
+openai==1.46.0
 opencv-python
 pillow==9.5.0
 psutil

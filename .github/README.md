@@ -3,7 +3,7 @@
     ──【 ʀɪsʜυ-ϻυsɪᴄ 】🚩──
 </h2>
 <div align="center">
-    <img src="[.github/Rishu.gif](https://github.com/RishuBot/RishuMusic/blob/main/.github/Rishu.gif)" alt="RishuMusic GIF" />
+    <img src="https://github.com/RishuBot/RishuMusic/blob/main/.github/Rishu.gif" alt="RishuMusic GIF" />
 </div>
 
 <p align="center">

@@ -3,8 +3,7 @@
     ──【 ʀɪsʜυ-ϻυsɪᴄ 】🚩──
 </h2>
 <div align="center">
-    <img src="./Rishu
-.gif" alt="RishuMusic GIF" />
+    <img src=".github/Rishu.gif" alt="RishuMusic GIF" />
 </div>
 
 <p align="center">

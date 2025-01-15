@@ -26,7 +26,7 @@
 
 ---
 
-➱ 🚀 DEPLOY ON HEROKU
+ ### ➱ 🚀 DEPLOY ON HEROKU
 
 <details>
   <summary>Click here to heruko</summary>
@@ -39,7 +39,7 @@
 
 ---
 
-➱ 🔧 VPS DEPLOY
+### ➱ 🔧 VPS DEPLOY
 <details>
   <summary>Click here to vps setup</summary>
   <br>

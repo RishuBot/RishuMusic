@@ -10,7 +10,7 @@
     <a href="https://github.com/Rishubot/RishuMusic">
         <img src="https://img.shields.io/github/stars/Rishubot/RishuMusic&color=black&logo=github&logoColor=black&style=for-the-badge" alt="Stars" />
     </a>
-    <a href="https://github.com/Rishubot/RishuMusic_MxPLAYER/network/members">
+    <a href="https://github.com/Rishubot/RishuMusic/network/members">
         <img src="https://img.shields.io/github/forks/Rishubot/RishuMusic?color=black&logo=github&logoColor=black&style=for-the-badge" alt="Forks" />
     </a>
     <a href="https://github.com/Rishubot/RishuMusic/blob/master/LICENSE">

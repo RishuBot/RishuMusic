@@ -101,7 +101,7 @@
 
 </details>
 
-##The RishuMusic Music Bot offers a range of commands to enhance your music listening experience on Telegram:
+## The RishuMusic Music Bot offers a range of commands to enhance your music listening experience on Telegram:
 
 | Command                 | Description                                 |
 |-------------------------|---------------------------------------------|

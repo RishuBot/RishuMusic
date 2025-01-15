@@ -378,18 +378,13 @@ HELP_C = """```
 ](https://t.me/Ur_rishu_143) ɪs ᴏɴᴇ ᴏғ ᴛʜᴇ ʙᴇsᴛ ᴍᴜsɪᴄ | ᴠɪᴅᴇᴏ sᴛꝛᴇᴀᴍɪɴɢ ʙᴏᴛ ᴏɴ ᴛᴇʟᴇɢꝛᴧᴍ ғᴏꝛ ʏᴏᴜꝛ ɢꝛᴏᴜᴘs ᴀɴᴅ ᴄʜᴧɴɴᴇʟ**
 ```\n⌬ ʙᴇsᴛ ғᴇᴀsɪʙɪʟɪᴛʏ ᴏɴ ᴛᴏᴘ  ?```
 
-**❖
- ʙᴇsᴛ sᴏᴜɴᴅ ǫᴜᴀʟɪᴛʏ
-❖
- ɴᴏ ᴘꝛᴏᴍᴏᴛɪᴏɴᴧʟ ᴧᴅs | ʜɪɢʜ ᴜᴘ-ᴛɪᴍᴇ 
-❖
- ʜɪɢʜ ɪɴғꝛᴧsᴛꝛᴜᴄᴛᴜꝛᴇ sᴇꝛᴠᴇꝛ
-❖
- ꝛᴇ-ᴇᴅɪᴛᴇᴅ ᴄᴏꝛᴇ | ʜɪɢʜʟʏ ᴏᴘᴛɪᴍɪsᴇ
-❖
- ɴᴏ ᴍᴏꝛᴇ ʟᴧɢ ᴀɴᴅ ᴅᴏᴡɴ-ᴛɪᴍᴇ
-❖
- ᴍᴀɴʏ ᴍᴏʀᴇ ғᴇᴀᴛᴜʀᴇs........
+**❖ ʙᴇsᴛ sᴏᴜɴᴅ ǫᴜᴀʟɪᴛʏ
+
+❖ ɴᴏ ᴘꝛᴏᴍᴏᴛɪᴏɴᴧʟ ᴧᴅs | ʜɪɢʜ ᴜᴘ-ᴛɪᴍᴇ 
+❖ ʜɪɢʜ ɪɴғꝛᴧsᴛꝛᴜᴄᴛᴜꝛᴇ sᴇꝛᴠᴇꝛ
+❖ꝛᴇ-ᴇᴅɪᴛᴇᴅ ᴄᴏꝛᴇ | ʜɪɢʜʟʏ ᴏᴘᴛɪᴍɪsᴇ
+❖ɴᴏ ᴍᴏꝛᴇ ʟᴧɢ ᴀɴᴅ ᴅᴏᴡɴ-ᴛɪᴍᴇ
+❖ᴍᴀɴʏ ᴍᴏʀᴇ ғᴇᴀᴛᴜʀᴇs........
 
 ᴀʟʟ ᴛʜᴇ ғᴇᴀᴛᴜʀᴇs ᴀʀᴇ ᴡᴏʀᴋɪɴɢ ғɪɴᴇ
 
@@ -399,32 +394,26 @@ HELP_X = """```
     【 ʀɪsʜυ-ϻυsɪᴄ 】🚩
  ᴍᴇɴᴜ```
 **ᴀʟʟ ᴄᴏᴍᴍᴀɴᴅs ᴄᴀɴ ʙᴇ ᴜsᴇᴅ ᴡɪᴛʜ : /
-❖
- /play - Pʟᴀʏ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴏɴɢ [ᴀᴜɪᴅᴏ].
+❖ /play - Pʟᴀʏ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴏɴɢ [ᴀᴜɪᴅᴏ].
 
-❖
- /vplay - Pʟᴀʏ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴏɴɢ [ᴠɪᴅᴇᴏ].
+❖ /vplay - Pʟᴀʏ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴏɴɢ [ᴠɪᴅᴇᴏ].
 
-❖
- /pause - Sᴛᴏᴘ sᴏɴɢ[ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ].
+❖ /pause - Sᴛᴏᴘ sᴏɴɢ[ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ].
 
-❖
- /resume - Cᴏɴᴛɪɴᴜᴇ ᴘʟᴀʏ sᴏɴɢ [ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ]
+❖ /resume - Cᴏɴᴛɪɴᴜᴇ ᴘʟᴀʏ sᴏɴɢ [ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ]
 
-❖
- /skip - Sᴋɪᴘ sᴏɴɢ [ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ]
+❖ /skip - Sᴋɪᴘ sᴏɴɢ [ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ]
 
-❖
- /end - Cʟᴇᴀʀ , ᴇɴᴅ ᴀʟʟ sᴏɴɢ [ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ]
+❖ /end - Cʟᴇᴀʀ , ᴇɴᴅ ᴀʟʟ sᴏɴɢ [ᴀᴜɪᴅᴏ & ᴠɪᴅᴇᴏ]
 
 ❖ 𝐏ᴏᴡᴇʀᴇᴅ ʙʏ - [ʀɪsʜυ ʙσᴛ](https://t.me/Ur_rishu_143)**"""
 
 # Callback query handler
-@bot.on_callback_query(filters.regex("UTTAM_RATHORE"))
+@bot.on_callback_query(filters.regex("YOUR_RISHU"))
 async def helper_cb(client, CallbackQuery):
     await CallbackQuery.edit_message_text(HELP_X, reply_markup=ABUTTON)
 
-@bot.on_callback_query(filters.regex("UTTAM"))
+@bot.on_callback_query(filters.regex("RISHU"))
 async def helper_cb(client, CallbackQuery):
     await CallbackQuery.edit_message_text(HELP_C, reply_markup=CBUTTON)
 
@@ -478,17 +467,17 @@ async def start_message_private(client, message):
                     ),
                     InlineKeyboardButton(
                         text="˹ ᴍᴜsɪᴄ ˼",
-                        callback_data="UTTAM_RATHORE",
+                        callback_data="YOUR_RISHU",
                     ),
                 ],
                 [
                     InlineKeyboardButton(
                         text="˹ ᴧʙᴏᴜᴛ ˼",
-                        callback_data="UTTAM",
+                        callback_data="RISHU",
                     ),
                     InlineKeyboardButton(
                         text="˹ ʀᴇᴘᴏ ˼",
-                        url="https://github.com/rishubot",  # Callback data for Owner button
+                        url="https://github.com/rishubot/RishuMusic",  # Callback data for Owner button
                     ),
                 ]
             ]
@@ -552,17 +541,17 @@ async def back_to_home_menu(client, query):
                 ),
                 InlineKeyboardButton(
                     text="˹ ᴍᴜsɪᴄ ˼",
-                    callback_data="UTTAM_RATHORE",
+                    callback_data="YOUR_RISHU",
                 ),
             ],
             [
                 InlineKeyboardButton(
                     text="˹ ᴧʙᴏᴜᴛ ˼",
-                    callback_data="UTTAM",
+                    callback_data="RISHU",
                 ),
                 InlineKeyboardButton(
                     text="˹ ʀᴇᴘᴏ ˼",
-                    url="https://github.com/Rishubot",  # Callback data for Owner button
+                    url="https://github.com/Rishubot/RishuMusic",  # Callback data for Owner button
                 ),
             ]
         ]

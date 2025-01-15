@@ -19,7 +19,7 @@
     <a href="https://www.python.org/">
         <img src="https://img.shields.io/badge/Written%20in-Python-orange?style=for-the-badge&logo=python" alt="Python" />
     </a>
-    <a href="https://github.com/RishubotRishumusic/commits/Rishubot">
+    <a href="https://github.com/Rishubot/Rishumusic/commits/Rishubot">
         <img src="https://img.shields.io/github/last-commit/Rishubot/RishuMusic?color=blue&logo=github&logoColor=green&style=for-the-badge" alt="Last Commit" />
     </a>
 </p>

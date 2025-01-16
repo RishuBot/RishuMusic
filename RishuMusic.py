@@ -374,8 +374,7 @@ ABUTTON = InlineKeyboardMarkup(
 HELP_C = """```
 ⌬ ๏ ʟᴇᴛ's ɪɴᴛʀᴏᴅᴜᴄᴇ ᴍᴜsɪᴄ ʙᴏᴛ```
 
-**⌬ [【 ʀɪsʜυ-ϻυsɪᴄ 】🚩
-](https://t.me/Ur_rishu_143) ɪs ᴏɴᴇ ᴏғ ᴛʜᴇ ʙᴇsᴛ ᴍᴜsɪᴄ | ᴠɪᴅᴇᴏ sᴛꝛᴇᴀᴍɪɴɢ ʙᴏᴛ ᴏɴ ᴛᴇʟᴇɢꝛᴧᴍ ғᴏꝛ ʏᴏᴜꝛ ɢꝛᴏᴜᴘs ᴀɴᴅ ᴄʜᴧɴɴᴇʟ**
+**⌬ [【 ʀɪsʜυ-ϻυsɪᴄ 】](https://t.me/Ur_rishu_143) ɪs ᴏɴᴇ ᴏғ ᴛʜᴇ ʙᴇsᴛ ᴍᴜsɪᴄ | ᴠɪᴅᴇᴏ sᴛꝛᴇᴀᴍɪɴɢ ʙᴏᴛ ᴏɴ ᴛᴇʟᴇɢꝛᴧᴍ ғᴏꝛ ʏᴏᴜꝛ ɢꝛᴏᴜᴘs ᴀɴᴅ ᴄʜᴧɴɴᴇʟ**
 ```\n⌬ ʙᴇsᴛ ғᴇᴀsɪʙɪʟɪᴛʏ ᴏɴ ᴛᴏᴘ  ?```
 
 **❖ ʙᴇsᴛ sᴏᴜɴᴅ ǫᴜᴀʟɪᴛʏ
@@ -391,9 +390,10 @@ HELP_C = """```
 ⌬ ᴍᴏʀᴇ ɪɴғᴏ. [ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ](https://t.me/Ur_rishu_143)**"""
 
 HELP_X = """```
-    【 ʀɪsʜυ-ϻυsɪᴄ 】🚩
- ᴍᴇɴᴜ```
+【 ʀɪsʜυ-ϻυsɪᴄ 】 ᴍᴇɴᴜ```
+
 **ᴀʟʟ ᴄᴏᴍᴍᴀɴᴅs ᴄᴀɴ ʙᴇ ᴜsᴇᴅ ᴡɪᴛʜ : /
+
 ❖ /play - Pʟᴀʏ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴏɴɢ [ᴀᴜɪᴅᴏ].
 
 ❖ /vplay - Pʟᴀʏ ʏᴏᴜʀ ғᴀᴠᴏʀɪᴛᴇ sᴏɴɢ [ᴠɪᴅᴇᴏ].
@@ -907,8 +907,7 @@ async def change_stream(chat_id):
 
     await call.play(chat_id, stream_media, config=call_config)
     await add_active_media_chat(chat_id, stream_type)
-    caption = f"""```\n🔊<b>【 ʀɪsʜυ-ϻυsɪᴄ 】🚩
-•```\n<b>❍ ᴛɪᴛʟє ➥</b> {title}\n<b>❍ ᴛɪϻє ➥</b> {duration} ᴍɪɴᴜᴛᴇs\n<b>❍ ʙʏ ➥</b> {requested_by}```\nᴘᴏᴡᴇʀᴇᴅ ʙʏ➛ ˹ ʀɪsʜᴜ ꭙ ᴍᴜsɪᴄ ˼```"""
+    caption = f"""```\n🔊<b>【 ʀɪsʜυ-ϻυsɪᴄ 】```\n\n<b>❍ ᴛɪᴛʟє ➥</b> {title}\n<b>❍ ᴛɪϻє ➥</b> {duration} ᴍɪɴᴜᴛᴇs\n<b>❍ ʙʏ ➥</b> {requested_by}```\nᴘᴏᴡᴇʀᴇᴅ ʙʏ➛ ˹ ʀɪsʜᴜ ꭙ ᴍᴜsɪᴄ ˼```"""
     buttons = InlineKeyboardMarkup(
     inline_keyboard=[
         [
@@ -1146,10 +1145,7 @@ async def stream_audio_or_video(client, message):
                 position = await add_to_queue(
                     chat_id, user, title, duration, stream_file, stream_type, thumbnail
                 )
-                caption = f"""```\n🔊 Aᴅᴅᴇᴅ {position} ǫᴜᴇᴜᴇ```\n❖
- ʜᴇʏ {requested_by}\n❖
- ʏᴏᴜʀ sᴏɴɢ {title}\n❖
- ᴘʟᴀʏ ᴀғᴛᴇʀ {position} sᴏɴɢ.```\n⏤͟͟͞͞★ Jᴀʏ sʜʀᴇᴇ ʀᴀᴍ 🚩```"""
+                caption = f"""```\n🔊 Aᴅᴅᴇᴅ {position} ǫᴜᴇᴜᴇ```\n❖ ʜᴇʏ {requested_by}\n❖ ʏᴏᴜʀ sᴏɴɢ {title}\n❖ ᴘʟᴀʏ ᴀғᴛᴇʀ {position} sᴏɴɢ.```\n⏤͟͟͞͞★ Jᴀʏ sʜʀᴇᴇ ʀᴀᴍ 🚩```"""
                 await bot.send_photo(chat_id, thumbnail, caption, reply_markup=buttons)
                 await stream_logger(
                     chat_id, user, title, duration, stream_type, thumbnail, position
@@ -1251,10 +1247,7 @@ async def stream_audio_or_video(client, message):
                 position = await add_to_queue(
                     chat_id, user, title, duration, stream_file, stream_type, thumbnail
                 )
-                caption = f"""```\n🔊<b>【◖ Sαηαтαηι ◗ 】🚩•```\n<b>❖
- ʟʏʀɪᴄ •</b> {title}\n<b>❖
- ᴛɪᴍᴇ •</b> {duration} ᴍɪɴᴜᴛᴇs\n<b>❖
- ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ •</b> {requested_by}```\nᴘᴏᴡᴇʀᴇᴅ ʙʏ➛ ˹ ʀɪsʜᴜ ꭙ ᴍᴜsɪᴄ ˼```"""
+                caption = f"""🔊<b>【ʀɪsʜυ-ϻυsɪᴄ \n\n<b>❍ ᴛɪᴛʟє ➥</b> {title}\n<b>❍ ᴛɪϻє ➥</b> {duration} ᴍɪɴᴜᴛᴇs\n<b>❍ ʙʏ ➥</b> {requested_by}```\nᴘᴏᴡᴇʀᴇᴅ ʙʏ➛ ˹ ʀɪsʜᴜ ꭙ ᴍᴜsɪᴄ ˼```"""
                 await bot.send_photo(chat_id, thumbnail, caption, reply_markup=buttons)
                 await stream_logger(
                     chat_id, user, title, duration, stream_type, thumbnail
@@ -1448,7 +1441,7 @@ async def git_repo_link(client, message):
             ),
             InlineKeyboardButton(
                 text="˹ sᴏᴜꝛᴄᴇ ˼",
-                url="https://github.com/rishubot"
+                url="https://github.com/rishubot/RishuMusic"
             ),
         ],
         [
@@ -1478,12 +1471,12 @@ async def update_repo_latest(client, message):
         return await response.edit("Git Command Error")
     except InvalidGitRepositoryError:
         return await response.edit("Invalid Git Repsitory")
-    to_exc = f"git fetch origin aditya &> /dev/null"
+    to_exc = f"git fetch origin main &> /dev/null"
     os.system(to_exc)
     await asyncio.sleep(7)
     verification = ""
     REPO_ = repo.remotes.origin.url.split(".git")[0]  # main git repository
-    for checks in repo.iter_commits(f"HEAD..origin/aditya"):
+    for checks in repo.iter_commits(f"HEAD..origin/main"):
         verification = str(checks.count())
     if verification == "":
         return await response.edit("Bot is up-to-date!")

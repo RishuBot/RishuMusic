@@ -43,10 +43,8 @@
 <details>
   <summary>Click here to vps setup</summary>
   <br>
-1. **Upgrade & Update:**
-   ```bash
-   apt update -y && apt install sudo -y
-   ```
+1. ** Upgrade & Update:**
+   ```bash apt update -y && apt install sudo -y```
 
 2. **Install Required Packages:**
    ```bash

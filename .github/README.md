@@ -5,7 +5,15 @@
 <div align="center">
     <img src="https://github.com/RishuBot/RishuMusic/blob/main/.github/Rishu.gif" alt="RishuMusic GIF" />
 </div>
+<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif">
+<img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif">
 
+<img src="https://readme-typing-svg.herokuapp.com?color=00FF00&width=420&lines=𝐑𝐈𝐒𝐇𝐔+𝗦𝗧𝗥𝗜𝗡𝗚+𝗕𝗢𝗧+𝗕𝗬+𝐑𝐈𝐒𝐇𝐔+𝗧𝗘𝗔𝗠">
+
+
+![Readme Card](https://github-readme-stats.vercel.app/api/pin/?username=RishuBot&repo=RISHUSTRING&theme=flag-india)
+[![GIF](https://github.com/RishuBot/RISHUSTRING/blob/main/RISHUBOT.gif)](https://github.com/RishuBot)
+   [![𝐌𝐑.𝐑𝐈𝐒𝐇𝐔](https://github-stats-alpha.vercel.app/api?username=RishuBot "RishuBot")](https://github-stats-alpha.vercel.app/api?username=RishuBot "RISHU")
 <p align="center">
     <a href="https://github.com/Rishubot/RishuMusic">
         <img src="https://img.shields.io/github/stars/Rishubot/RishuMusic&color=black&logo=github&logoColor=black&style=for-the-badge" alt="Stars" />

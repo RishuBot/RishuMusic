@@ -77,7 +77,7 @@ def help_pannel(_, is_sudo, START: Union[bool, int] = None):
     
  #   upl.append(mark)
 
-   # return InlineKeyboardMarkup(upl)
+    return InlineKeyboardMarkup(upl)
 
 
 def help_back_markup(_):

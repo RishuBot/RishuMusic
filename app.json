@@ -1,5 +1,5 @@
 {
-    "name": "xBitMuisc",
+    "name": "Rishu Music",
     "description": "A Telegram Music Player Bot, written in Python with Pyrogram and Py-Tgcalls.",
     "logo": "https://imgur.com/a/zdIwpug",
     "keywords": [
@@ -14,12 +14,12 @@
     "env": {
       "API_ID": {
         "description": "Get this value from https://my.telegram.org",
-        "value": "",
+        "value": "6435225",
         "required": true
       },
       "API_HASH": {
         "description": "Get this value from https://my.telegram.org",
-        "value": "",
+        "value": "4e984ea35f854762dcde906dce426c2d",
         "required": true
       },
       "BOT_TOKEN": {

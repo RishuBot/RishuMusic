@@ -35,19 +35,15 @@ EFFECT_ID = [
 ]
 
 Kanha_Pic = [
-    "https://i.ibb.co/VYvJMJgh/x.jpg",
-    "https://i.ibb.co/LXGxYRnJ/x.jpg",
-    "https://i.ibb.co/YTPV4Swv/x.jpg",
-    "https://i.ibb.co/CKsQzVHT/x.jpg",
-    "https://i.ibb.co/4n7Fcz75/x.jpg",
-    "https://i.ibb.co/qMCt4gQm/x.jpg",
-    "https://i.ibb.co/pjvF9W5B/x.jpg",
-    "https://i.ibb.co/WXs66zC/x.jpg",
-    "https://i.ibb.co/W4PSwTs0/x.jpg",
-    "https://i.ibb.co/Kc8fY1B9/x.jpg",
-    "https://i.ibb.co/84DkKPSy/x.jpg",
-    "https://i.ibb.co/nsVQcYkL/x.jpg",
-    "https://i.ibb.co/tnDc1hd/x.jpg"
+    "https://files.catbox.moe/v00l7e.jpg",
+    "https://files.catbox.moe/uow54p.jpg",
+    "https://files.catbox.moe/z0t6l3.jpg",
+    "https://files.catbox.moe/jdw0il.jpg",
+    "https://files.catbox.moe/izfi0y.jpg",
+    "https://files.catbox.moe/7wx3ha.jpg",
+    "https://files.catbox.moe/2u0srm.jpg",
+    "https://files.catbox.moe/tqwy0q.jpg",
+    "https://files.catbox.moe/vbgrx1.jpg"
 ]
 
 

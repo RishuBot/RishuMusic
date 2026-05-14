@@ -66,13 +66,13 @@ def help_pannel(_, is_sudo, START: Union[bool, int] = None):
         ]
     
  ##   if is_sudo:
-        upl.append(
-            [
-                InlineKeyboardButton(
-                    text="Ai/TTS/IMAGE Settings",
+   ##     upl.append(
+        #    [
+             #   InlineKeyboardButton(
+               #     text="Ai/TTS/IMAGE Settings",#
                     callback_data="help_callback hb16",
-                )
-            ]
+           #     )
+          #  ]
         )
     
     upl.append(mark)

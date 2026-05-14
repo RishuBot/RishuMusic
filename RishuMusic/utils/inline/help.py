@@ -70,7 +70,7 @@ def help_pannel(_, is_sudo, START: Union[bool, int] = None):
         #    [
              #   InlineKeyboardButton(
                #     text="Ai/TTS/IMAGE Settings",#
-                    callback_data="help_callback hb16",
+                    #callback_data="help_callback hb16",
            #     )
           #  ]
         )
@@ -86,7 +86,7 @@ def help_back_markup(_):
             [
                 InlineKeyboardButton(
                     text=_["BACK_BUTTON"],
-                    #callback_data=f"settings_back_helper",
+                    callback_data=f"settings_back_helper",
                 ),
             ]
         ]

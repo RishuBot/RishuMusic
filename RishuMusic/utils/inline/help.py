@@ -65,7 +65,7 @@ def help_pannel(_, is_sudo, START: Union[bool, int] = None):
             ],
         ]
     
-    if is_sudo:
+ ##   if is_sudo:
         upl.append(
             [
                 InlineKeyboardButton(

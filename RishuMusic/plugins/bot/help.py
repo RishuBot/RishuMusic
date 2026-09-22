@@ -13,7 +13,7 @@ from RishuMusic.utils import help_pannel
 from RishuMusic.utils.database import get_lang, get_model_settings, update_model_settings
 from RishuMusic.utils.decorators.language import LanguageStart, languageCB
 from RishuMusic.utils.inline.help import help_back_markup, private_help_panel
-from config import BANNED_USERS, START_IMG_URL, SUPPORT_CHAT, YTPROXY_URL
+from config import BANNED_USERS, START_IMG_URL, SUPPORT_CHAT
 import config
 from strings import get_string, helpers
 

@@ -4,7 +4,7 @@ from pyrogram import filters
 from pyrogram.types import Message
 
 from RishuMusic import app
-from RishuMusic.core.call import Anony
+from RishuMusic.core.call import Rishu
 from RishuMusic.utils import bot_sys_stats
 from RishuMusic.utils.decorators.language import language
 from RishuMusic.utils.inline import supp_markup
@@ -19,7 +19,7 @@ async def ping_com(client, message: Message, _):
         photo=PING_IMG_URL,
         caption=_["ping_1"].format(app.mention),
     )
-    pytgping = await Anony.ping()
+    pytgping = await Rishu.ping()
     UP, CPU, RAM, DISK = await bot_sys_stats()
     resp = (datetime.now() - start).microseconds / 1000
     await response.edit_text(

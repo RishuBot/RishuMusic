@@ -37,9 +37,9 @@ async def init():
         importlib.import_module("RishuMusic.plugins" + all_module)
     LOGGER("RishuMusic.plugins").info("Successfully Imported Modules...")
     await userbot.start()
-    await Anony.start()
+    await Rishu.start()
     try:
-        await Anony.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
+        await Rishu.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
     except NoActiveGroupCall:
         LOGGER("RishuMusic").error(
             "Please turn on the videochat of your log group\channel.\n\nStopping Bot..."
@@ -48,7 +48,7 @@ async def init():
     except:
         pass
 
-    await Anony.decorators()
+    await Rishu.decorators()
     await idle()
     await app.stop()
     LOGGER("RishuMusic").info("Stopping AnonX Music Bot...")

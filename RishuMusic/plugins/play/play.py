@@ -8,7 +8,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 
 import config
 from RishuMusic import Apple, Resso, SoundCloud, Spotify, Telegram, YouTube, app
-from RishuMusic.core.call import Anony
+from RishuMusic.core.call import Rishu
 from RishuMusic.utils import seconds_to_min, time_to_seconds
 from RishuMusic.utils.channelplay import get_channeplayCB
 from RishuMusic.utils.decorators.language import languageCB

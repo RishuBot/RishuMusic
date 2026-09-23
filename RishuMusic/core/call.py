@@ -600,6 +600,3 @@ class Call(PyTgCalls):
 shree = Call()
 
 
-Ansh = shree
-
-shree = Ansh

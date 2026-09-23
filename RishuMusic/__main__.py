@@ -6,7 +6,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 
 import config
 from RishuMusic import LOGGER, app, userbot
-from RishuMusic.core.call import Anony
+from RishuMusic.core.call import Rishu
 from RishuMusic.misc import sudo
 from RishuMusic.plugins import ALL_MODULES
 from RishuMusic.utils.database import get_banned_users, get_gbanned

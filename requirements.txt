@@ -2,8 +2,8 @@
 Kurigram>=2.2.26
 tgcrypto>=1.2.5
 
-# Group Call (VC) Core - Exactly 1.0.0 for stable build
-pytgcalls==1.0.0
+# Group Call (VC) Core - Official Fixed GitHub Source
+pytgcalls @ git+https://github.com/pytgcalls/pytgcalls.git
 ntgcalls
 
 # Media & YouTube Tools

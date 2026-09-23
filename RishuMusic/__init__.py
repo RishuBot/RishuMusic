@@ -1,4 +1,4 @@
-from RishuMusic.core.bot import Anony
+from RishuMusic.core.bot import Rishu
 from RishuMusic.core.dir import dirr
 from RishuMusic.core.git import git
 from RishuMusic.core.userbot import Userbot
@@ -11,7 +11,7 @@ git()
 dbb()
 heroku()
 
-app = Anony()
+app = Rishu()
 userbot = Userbot()
 
 from .platforms import *

@@ -595,3 +595,5 @@ class Call(PyTgCalls):
 
 Rishu = Call()
 
+
+Anony = Rishu

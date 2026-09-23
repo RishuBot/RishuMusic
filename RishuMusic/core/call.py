@@ -601,3 +601,5 @@ Rishu = Call()
 
 
 Anony = Rishu
+
+Rishu = Anony

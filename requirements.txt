@@ -2,8 +2,8 @@
 Kurigram>=2.2.26
 tgcrypto>=1.2.5
 
-# Group Call (VC) Core
-pytgcalls>=1.2.4
+# Group Call (VC) Core - Pinned below 2.0.0 to fix Railway build
+pytgcalls>=1.2.4,<2.0.0
 ntgcalls>=1.2.0
 
 # Media & YouTube Tools

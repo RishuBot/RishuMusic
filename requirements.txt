@@ -1,47 +1,35 @@
-# Core Telegram & Pyrogram Fork
+
 Kurigram>=2.2.26
-tgcrypto>=1.2.5
-
-# Group Call (VC) Core - Official Fixed GitHub Source
-pytgcalls @ git+https://github.com/pytgcalls/pytgcalls.git
+aiofiles
+aiohttp
+apscheduler
+beautifulsoup4
+dnspython
+gitpython
+hachoir
+httpx
+humanize
+requests
+python-dotenv
+pyyaml
+unidecode
+tgcrypto
+pyrofork
+ffmpeg-python
+py-tgcalls
 ntgcalls
-
-# Media & YouTube Tools
-yt-dlp>=2024.08.06
-youtube-search>=2.1.2
-youtube-search-python>=1.6.2
-py-yt-search>=0.0.6
-ffmpeg-python>=0.2.0
-hachoir>=3.3.0
-spotipy>=2.24.0
-
-# Async, HTTP & Web Requests
-aiohttp>=3.10.5
-aiofiles>=24.1.0
-httpx>=0.27.2
-requests>=2.32.3
-beautifulsoup4>=4.12.3
-
-# Database & System Utils
-pymongo>=4.8.0
-motor>=3.5.1
-dnspython>=2.6.1
-psutil>=6.0.0
-speedtest-cli>=2.1.3
-gitpython>=3.1.43
-heroku3>=5.2.1
-PyGithub>=2.3.0
-
-# Formatting, Scheduling & Helpers
-apscheduler>=3.10.4
-humanize>=4.10.0
-unidecode>=1.3.8
-prettytable>=3.11.0
-pyyaml>=6.0.2
-python-dotenv>=1.0.1
-pykeyboard>=0.1.4
-Pillow>=10.4.0
-numpy<2.0.0
-
-# AI / Chatgpt
-openai==0.28.1
+motor
+psutil
+heroku3
+Pillow
+speedtest-cli
+yt-dlp
+youtube-search
+youtube-search-python
+py-yt-search
+spotipy
+prettytable
+openai
+pykeyboard
+numpy
+PyGithub

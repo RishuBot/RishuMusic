@@ -3,7 +3,7 @@ from datetime import datetime
 
 import config
 from RishuMusic import app
-from RishuMusic.core.call import Anony, autoend
+from RishuMusic.core.call import Rishu, autoend
 from RishuMusic.utils.database import get_client, is_active_chat, is_autoend
 from pyrogram.enums import ChatType
 
@@ -57,7 +57,7 @@ async def auto_end():
                     continue
                 autoend[chat_id] = {}
                 try:
-                    await Anony.stop_stream(chat_id)
+                    await Rishu.stop_stream(chat_id)
                 except:
                     continue
                 try:

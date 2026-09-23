@@ -3,6 +3,10 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional, Union
 
+#kya hall hai
+
+
+
 from ntgcalls import ConnectionNotFound, TelegramServerError
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup

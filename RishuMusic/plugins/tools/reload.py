@@ -6,7 +6,7 @@ from pyrogram.enums import ChatMembersFilter
 from pyrogram.types import CallbackQuery, Message
 
 from RishuMusic import app
-from RishuMusic.core.call import Anony
+from RishuMusic.core.call import Rishu
 from RishuMusic.misc import db
 from RishuMusic.utils.database import get_assistant, get_authuser_names, get_cmode
 from RishuMusic.utils.decorators import ActualAdminCB, AdminActual, language
@@ -53,7 +53,7 @@ async def restartbot(client, message: Message, _):
     await asyncio.sleep(1)
     try:
         db[message.chat.id] = []
-        await Anony.stop_stream_force(message.chat.id)
+        await Rishu.stop_stream_force(message.chat.id)
     except:
         pass
     userbot = await get_assistant(message.chat.id)
@@ -80,7 +80,7 @@ async def restartbot(client, message: Message, _):
             pass
         try:
             db[chat_id] = []
-            await Anony.stop_stream_force(chat_id)
+            await Rishu.stop_stream_force(chat_id)
         except:
             pass
     return await mystic.edit_text(_["reload_5"].format(app.mention))

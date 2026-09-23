@@ -1,10 +1,3 @@
-import asyncio
-import os
-import shutil
-import socket
-from datetime import datetime
-
-import urllib3
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
 from pyrogram import filters
@@ -18,7 +11,7 @@ from RishuMusic.utils.database import (
     remove_active_video_chat,
 )
 from RishuMusic.utils.decorators.language import language
-from RishuMusic.utils.pastebin import AnonyBin
+from RishuMusic.utils.pastebin import RishuBin
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -68,7 +61,7 @@ async def update_(client, message, _):
     _update_response_ = "<b>ᴀ ɴᴇᴡ ᴜᴩᴅᴀᴛᴇ ɪs ᴀᴠᴀɪʟᴀʙʟᴇ ғᴏʀ ᴛʜᴇ ʙᴏᴛ !</b>\n\n➣ ᴩᴜsʜɪɴɢ ᴜᴩᴅᴀᴛᴇs ɴᴏᴡ\n\n<b><u>ᴜᴩᴅᴀᴛᴇs:</u></b>\n\n"
     _final_updates_ = _update_response_ + updates
     if len(_final_updates_) > 4096:
-        url = await AnonyBin(updates)
+        url = await RishuBin(updates)
         nrs = await response.edit(
             f"<b>ᴀ ɴᴇᴡ ᴜᴩᴅᴀᴛᴇ ɪs ᴀᴠᴀɪʟᴀʙʟᴇ ғᴏʀ ᴛʜᴇ ʙᴏᴛ !</b>\n\n➣ ᴩᴜsʜɪɴɢ ᴜᴩᴅᴀᴛᴇs ɴᴏᴡ\n\n<u><b>ᴜᴩᴅᴀᴛᴇs :</b></u>\n\n<a href={url}>ᴄʜᴇᴄᴋ ᴜᴩᴅᴀᴛᴇs</a>"
         )

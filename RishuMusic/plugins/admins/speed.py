@@ -2,7 +2,7 @@ from pyrogram import filters
 from pyrogram.types import Message
 
 from RishuMusic import app
-from RishuMusic.core.call import Anony
+from RishuMusic.core.call import Rishu
 from RishuMusic.misc import SUDOERS, db
 from RishuMusic.utils import AdminRightsCheck
 from RishuMusic.utils.database import is_active_chat, is_nonadmin_chat
@@ -94,7 +94,7 @@ async def del_back_playlist(client, CallbackQuery, _):
         text=_["admin_32"].format(CallbackQuery.from_user.mention),
     )
     try:
-        await Anony.speedup_stream(
+        await Rishu.speedup_stream(
             chat_id,
             file_path,
             speed,

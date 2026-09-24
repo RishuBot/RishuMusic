@@ -1,67 +1,30 @@
 # ============================================================
-# start.py — v7
-# CHANGELOG (v6 -> v7):
-#   - You shared the real RishuMusic/utils/inline.py: private_panel()
-#     already builds a correct, working button set — real string keys
-#     (_["S_B_3"], _["S_B_4"], _["S_B_5"], _["S_B_6"]), the real
-#     "settings_back_helper" callback_data (which already has a working
-#     handler somewhere in your settings plugin), and user_id=config.OWNER_ID
-#     for the Owner button (not a URL). My v6 "help_callback" button had
-#     NO handler anywhere — that's why it did nothing.
-#   - Fixed by using build_reply_markup(), which wraps private_panel()
-#     itself (only adding the admin row on top) for BOTH the reply_markup
-#     passed to send_rich_message() and the plain reply_photo() fallback.
-#   - Removed the on_help_callback handler entirely — reusing
-#     "settings_back_helper" means the handler that already works
-#     elsewhere in your codebase answers it; registering a second handler
-#     for the same callback_data would only conflict with that one.
-#   - The rich-message body's embedded <tg-button-row>s were rewritten to
-#     mirror the same real buttons/labels/targets instead of invented
-#     English text and a guessed config.OWNER_USERNAME (which likely
-#     doesn't exist — Owner now links via tg://user?id=... same as
-#     private_panel does with user_id=).
-#   - admin_panel stays as-is (new callback_data, no existing button used
-#     it, so it still needs the handler already added in v6).
-# ============================================================
-# CHANGELOG (v4 -> v5):
-#   - PRODUCTION CRASH FIX: your logs showed
-#       TypeError: Message.reply_photo() got an unexpected keyword
-#       argument 'message_effect_id'
-#     at plugins/bot/start.py line 118 — that's the fallback branch
-#     (send_rich_message isn't landing, so it's falling back to
-#     reply_photo()). Checked Kurigram's real reply_photo() signature:
-#     the param is effect_id, not message_effect_id (I'd only fixed
-#     this on the send_rich_message() call in v4, not on the
-#     reply_photo() fallback — fixed now on both).
-#   - Also added a startup log line so you can see in the container
-#     logs whether RICH_MESSAGES_SUPPORTED came back True or False,
-#     and the full exception if send_rich_message() itself raises —
-#     so we know for sure whether it's actually landing on your
-#     install or silently falling back every time.
-# CHANGELOG (v3 -> v4):
-#   - CONFIRMED against the actual Kurigram 2.2.26 source: your Kurigram
-#     already ships send_rich_message natively (pyrogram/methods/messages/
-#     send_rich_message.py + pyrogram/types/input_content/input_rich_message.py)
-#     — no pyrogrammod/ftmgram switch needed, and the ImportError fallback
-#     path is now just a safety net for an OLDER Kurigram install, not the
-#     expected path.
-#   - Fixed two param names to match the real send_rich_message() signature:
-#       * reply_to_message_id -> reply_parameters=ReplyParameters(message_id=...)
-#       * message_effect_id   -> effect_id
-#     (both taken from Kurigram's own send_rich_message docstring/signature)
-#   - Everything else (the <tg-slideshow>/<tg-button-row>/<tg-emoji> body,
-#     the fallback screen, group /start, welcome, help/sud/info branches)
-#     is unchanged from v3.
-#   - If you're on an older kurigram, run: pip install -U kurigram
+# start.py — v8
+# CHANGELOG (v7 -> v8):
+#   - FIX: 400 BUTTON_URL_INVALID on send_rich_message() in start_pm.
+#     Causes removed:
+#       * <tg-button type="url" data="tg://user?id=..."> inside the rich
+#         body (tg:// deep links are rejected there) -> removed. The Owner
+#         button still exists in the inline keyboard below
+#         (private_panel uses user_id=config.OWNER_ID).
+#       * config.SUPPORT_CHANNEL used raw -> now cleaned via safe_url()
+#         (handles @user, t.me/xyz, empty value); button skipped if invalid.
+#       * app.username could be None right after boot -> guarded.
+#   - Safety net: if send_rich_message() still raises ButtonUrlInvalid, it
+#     retries ONCE with the rich body WITHOUT its button rows (inline
+#     keyboard below still shows), then only falls back to reply_photo.
+#   - Everything else same as v7.
 # ============================================================
 
 import random
 import time
+import traceback
 from html import escape
 
 from py_yt import VideosSearch
 from pyrogram import filters
 from pyrogram.enums import ChatType
+from pyrogram.errors import ButtonUrlInvalid
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 try:
@@ -148,15 +111,41 @@ def custom_emoji(name: str) -> str:
     return name
 
 
+def safe_url(u):
+    """
+    Cleans a URL for Telegram buttons. Returns a valid https:// URL or None.
+    Handles: empty, '@username', 't.me/xyz', 'http(s)://...'.
+    tg:// links are NOT accepted here (Telegram rejects them in rich-body buttons).
+    """
+    u = (str(u) if u is not None else "").strip()
+    if not u:
+        return None
+    if u.startswith("@"):
+        return "https://t.me/" + u[1:]
+    if u.startswith(("t.me/", "telegram.me/")):
+        return "https://" + u
+    if u.startswith(("http://", "https://")):
+        return u
+    return None
+
+
 def get_start_img() -> str:
     """Returns a random start image URL (used by both the slideshow and the fallback photo)."""
     return random.choice(Kanha_Pic)
 
 
-def rich_start_html(_, user_mention: str, bot_mention: str, uptime: str, is_admin: bool = False) -> str:
+def rich_start_html(
+    _,
+    user_mention: str,
+    bot_mention: str,
+    uptime: str,
+    is_admin: bool = False,
+    with_buttons: bool = True,
+) -> str:
     """
     Real Bot API 10.3 rich-message body for the private /start screen:
     <tg-slideshow> + heading + feature list + snapshot blockquote + <tg-button-row>s.
+    with_buttons=False builds the body without any button rows (retry path).
     """
     slideshow = (
         "<tg-slideshow>"
@@ -192,20 +181,35 @@ def rich_start_html(_, user_mention: str, bot_mention: str, uptime: str, is_admi
         "</table>"
     )
 
-    buttons = (
-        '<tg-button-row align="center">'
-        f'<tg-button type="url" style="primary" data="https://t.me/{app.username}?startgroup=true">'
-        f"{_['S_B_3']}</tg-button>"
-        "</tg-button-row>"
-        '<tg-button-row align="center">'
-        f'<tg-button type="url" style="primary" data="tg://user?id={config.OWNER_ID}">'
-        f"{_['S_B_6']}</tg-button>"
-        f'<tg-button type="url" style="primary" data="{config.SUPPORT_CHANNEL}">'
-        f"{_['S_B_5']}</tg-button>"
-        "</tg-button-row>"
+    body = slideshow + heading + features + table
+    if not with_buttons:
+        return body
+
+    # ---- button rows (only URLs that pass safe_url are added) ----
+    buttons = ""
+
+    add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
+    if add_url:
+        buttons += (
+            '<tg-button-row align="center">'
+            f'<tg-button type="url" style="primary" data="{escape(add_url, quote=True)}">'
+            f"{escape(_['S_B_3'])}</tg-button>"
+            "</tg-button-row>"
+        )
+
+    support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
+    if support_url:
+        buttons += (
+            '<tg-button-row align="center">'
+            f'<tg-button type="url" style="primary" data="{escape(support_url, quote=True)}">'
+            f"{escape(_['S_B_5'])}</tg-button>"
+            "</tg-button-row>"
+        )
+
+    buttons += (
         '<tg-button-row align="center">'
         f'<tg-button type="callback_data" style="success" data="settings_back_helper">'
-        f"{_['S_B_4']}</tg-button>"
+        f"{escape(_['S_B_4'])}</tg-button>"
         "</tg-button-row>"
     )
     if is_admin:
@@ -216,7 +220,7 @@ def rich_start_html(_, user_mention: str, bot_mention: str, uptime: str, is_admi
             "</tg-button-row>"
         )
 
-    return slideshow + heading + features + table + buttons
+    return body + buttons
 
 
 def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
@@ -230,6 +234,24 @@ def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
     if is_admin:
         buttons = buttons + [[InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")]]
     return InlineKeyboardMarkup(buttons)
+
+
+async def _send_rich_start(client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool):
+    rich_html = rich_start_html(
+        _,
+        user_mention=message.from_user.mention,
+        bot_mention=app.mention,
+        uptime=uptime,
+        is_admin=is_admin,
+        with_buttons=with_buttons,
+    )
+    await client.send_rich_message(
+        chat_id=message.chat.id,
+        rich_message=InputRichMessage(html=rich_html),
+        reply_parameters=ReplyParameters(message_id=message.id),
+        effect_id=random.choice(EFFECT_ID),
+        reply_markup=build_reply_markup(_, is_admin=is_admin),
+    )
 
 
 @app.on_message(filters.command(["start"]) & filters.private & ~BANNED_USERS)
@@ -294,33 +316,25 @@ async def start_pm(client, message: Message, _):
                     text=f"{message.from_user.mention} ᴊᴜsᴛ sᴛᴀʀᴛᴇᴅ ᴛʜᴇ ʙᴏᴛ ᴛᴏ ᴄʜᴇᴄᴋ <b>ᴛʀᴀᴄᴋ ɪɴғᴏʀᴍᴀᴛɪᴏɴ</b>.\n\n<b>ᴜsᴇʀ ɪᴅ :</b> <code>{message.from_user.id}</code>\n<b>ᴜsᴇʀɴᴀᴍᴇ :</b> @{message.from_user.username}",
                 )
     else:
-        # ---- v3: real Bot API 10.3 rich message for the plain /start screen ----
         uptime = get_readable_time(int(time.time() - _boot_))
         is_admin = message.from_user.id in getattr(config, "SUDO_USERS", set()) or message.from_user.id == getattr(config, "OWNER_ID", None)
 
         sent = False
         if RICH_MESSAGES_SUPPORTED:
             try:
-                rich_html = rich_start_html(
-                    _,
-                    user_mention=message.from_user.mention,
-                    bot_mention=app.mention,
-                    uptime=uptime,
-                    is_admin=is_admin,
-                )
-                # v7: normal inline keyboard rendered BELOW the rich body too
-                # (send_rich_message() takes reply_markup just like send_message)
-                await client.send_rich_message(
-                    chat_id=message.chat.id,
-                    rich_message=InputRichMessage(html=rich_html),
-                    reply_parameters=ReplyParameters(message_id=message.id),
-                    effect_id=random.choice(EFFECT_ID),
-                    reply_markup=build_reply_markup(_, is_admin=is_admin),
-                )
+                await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True)
                 sent = True
+            except ButtonUrlInvalid as ex:
+                # A button URL in the rich body was rejected — retry without body buttons.
+                print(f"[start_pm] BUTTON_URL_INVALID in rich body, retrying without buttons: {ex}")
+                try:
+                    await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=False)
+                    sent = True
+                except Exception as ex2:
+                    print(f"[start_pm] retry without buttons failed, falling back: {ex2}")
+                    traceback.print_exc()
             except Exception as ex:
                 # Fork/server doesn't actually support it yet — fall back below.
-                import traceback
                 print(f"[start_pm] send_rich_message failed, falling back: {ex}")
                 traceback.print_exc()
 
@@ -340,12 +354,8 @@ async def start_pm(client, message: Message, _):
             )
 
 
-# v7: "settings_back_helper" is already handled by your existing settings
-# plugin (it's the real S_B_4 callback_data from private_panel()), so we
-# reuse it rather than registering a second handler for it — a duplicate
-# handler on the same callback_data would fight with the one that already
-# works. "admin_panel" is new (no existing button used this name), so it
-# still needs its own handler here.
+# "settings_back_helper" is handled by your existing settings plugin.
+# "admin_panel" is new, so it has its own handler here.
 @app.on_callback_query(filters.regex("^admin_panel$"))
 async def on_admin_panel_callback(client, callback_query):
     is_admin = callback_query.from_user.id in getattr(config, "SUDO_USERS", set()) or callback_query.from_user.id == getattr(config, "OWNER_ID", None)

@@ -54,5 +54,5 @@ class Shree(Client):
         await super().stop()
 
 
-
+app = shree()
 

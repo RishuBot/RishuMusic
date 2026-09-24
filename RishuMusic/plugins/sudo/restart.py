@@ -1,7 +1,7 @@
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
 from pyrogram import filters
-
+import urllib3
 import config
 from RishuMusic import app
 from RishuMusic.misc import HAPP, SUDOERS, XCB

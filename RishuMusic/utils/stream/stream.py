@@ -10,11 +10,11 @@ from RishuMusic.misc import db
 from RishuMusic.utils.database import add_active_video_chat, is_active_chat
 from RishuMusic.utils.exceptions import AssistantErr
 from RishuMusic.utils.inline import aq_markup, close_markup, stream_markup
-# v4 (broken)
+# v5 (broken)
 # from RishuMusic.utils.pastebin import shreeBin
 
-# v5 (jo naam pastebin.py mein hai wahi likho, e.g. AnonyBin)
-from RishuMusic.utils.pastebin import AnonyBin as shreeBin
+# v6
+from RishuMusic.utils.pastebin import ShreeBin as shreeBin
 from RishuMusic.utils.stream.queue import put_queue, put_queue_index
 from RishuMusic.utils.thumbnails import get_thumb
 

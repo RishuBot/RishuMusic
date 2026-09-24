@@ -56,4 +56,3 @@ class Shree(Client):
 
 
 
-shree = Shree()

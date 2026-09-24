@@ -52,3 +52,8 @@ class Shree(Client):
 
     async def stop(self):
         await super().stop()
+
+
+
+
+shree = Shree()

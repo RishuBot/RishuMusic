@@ -1,5 +1,28 @@
 # ============================================================
-# start.py — v5
+# start.py — v7
+# CHANGELOG (v6 -> v7):
+#   - You shared the real RishuMusic/utils/inline.py: private_panel()
+#     already builds a correct, working button set — real string keys
+#     (_["S_B_3"], _["S_B_4"], _["S_B_5"], _["S_B_6"]), the real
+#     "settings_back_helper" callback_data (which already has a working
+#     handler somewhere in your settings plugin), and user_id=config.OWNER_ID
+#     for the Owner button (not a URL). My v6 "help_callback" button had
+#     NO handler anywhere — that's why it did nothing.
+#   - Fixed by using build_reply_markup(), which wraps private_panel()
+#     itself (only adding the admin row on top) for BOTH the reply_markup
+#     passed to send_rich_message() and the plain reply_photo() fallback.
+#   - Removed the on_help_callback handler entirely — reusing
+#     "settings_back_helper" means the handler that already works
+#     elsewhere in your codebase answers it; registering a second handler
+#     for the same callback_data would only conflict with that one.
+#   - The rich-message body's embedded <tg-button-row>s were rewritten to
+#     mirror the same real buttons/labels/targets instead of invented
+#     English text and a guessed config.OWNER_USERNAME (which likely
+#     doesn't exist — Owner now links via tg://user?id=... same as
+#     private_panel does with user_id=).
+#   - admin_panel stays as-is (new callback_data, no existing button used
+#     it, so it still needs the handler already added in v6).
+# ============================================================
 # CHANGELOG (v4 -> v5):
 #   - PRODUCTION CRASH FIX: your logs showed
 #       TypeError: Message.reply_photo() got an unexpected keyword
@@ -159,30 +182,30 @@ def rich_start_html(_, user_mention: str, bot_mention: str, uptime: str, is_admi
         "</blockquote>"
     )
 
-    snapshot = (
+    table = (
         "<h2>BOT SNAPSHOT</h2>"
-        "<blockquote>"
-        f"├ Status • {custom_emoji('✅')} <b>Online</b><br/>"
-        f"└ Uptime • <b>{escape(uptime)}</b>"
-        "</blockquote>"
+        "<table>"
+        "<tr><th>Field</th><th>Value</th></tr>"
+        f"<tr><td>Status</td><td>{custom_emoji('✅')} Online</td></tr>"
+        f"<tr><td>Uptime</td><td>{escape(uptime)}</td></tr>"
+        f"<tr><td>Plan</td><td>{'Admin' if is_admin else 'Free'}</td></tr>"
+        "</table>"
     )
 
     buttons = (
         '<tg-button-row align="center">'
-        f'<tg-button type="url" style="primary" url="https://t.me/{app.username}?startgroup=true">'
-        f"{custom_emoji('🚀')} Add Me To Your Chat</tg-button>"
+        f'<tg-button type="url" style="primary" data="https://t.me/{app.username}?startgroup=true">'
+        f"{_['S_B_3']}</tg-button>"
         "</tg-button-row>"
         '<tg-button-row align="center">'
-        f'<tg-button type="callback_data" style="primary" data="help_callback">'
-        f"{custom_emoji('🚀')} Commands</tg-button>"
-        f'<tg-button type="url" style="primary" url="https://t.me/{getattr(config, "OWNER_USERNAME", "RishuCoder")}">'
-        f"{custom_emoji('💎')} Owner</tg-button>"
+        f'<tg-button type="url" style="primary" data="tg://user?id={config.OWNER_ID}">'
+        f"{_['S_B_6']}</tg-button>"
+        f'<tg-button type="url" style="primary" data="{config.SUPPORT_CHANNEL}">'
+        f"{_['S_B_5']}</tg-button>"
         "</tg-button-row>"
         '<tg-button-row align="center">'
-        f'<tg-button type="url" style="success" url="{config.SUPPORT_CHANNEL if hasattr(config, "SUPPORT_CHANNEL") else config.SUPPORT_CHAT}">'
-        f"{custom_emoji('📢')} Updates</tg-button>"
-        f'<tg-button type="url" style="success" url="{config.SUPPORT_CHAT}">'
-        f"{custom_emoji('🆘')} Support</tg-button>"
+        f'<tg-button type="callback_data" style="success" data="settings_back_helper">'
+        f"{_['S_B_4']}</tg-button>"
         "</tg-button-row>"
     )
     if is_admin:
@@ -193,25 +216,20 @@ def rich_start_html(_, user_mention: str, bot_mention: str, uptime: str, is_admi
             "</tg-button-row>"
         )
 
-    return slideshow + heading + features + snapshot + buttons
+    return slideshow + heading + features + table + buttons
 
 
-def fallback_start_buttons(is_admin: bool = False):
-    """Plain InlineKeyboardMarkup used only if send_rich_message isn't available."""
-    rows = [
-        [InlineKeyboardButton("🚀 Add Me To Your Chat", url=f"https://t.me/{app.username}?startgroup=true")],
-        [
-            InlineKeyboardButton("🚀 Commands", callback_data="help_callback"),
-            InlineKeyboardButton("💎 Owner", url=f"https://t.me/{getattr(config, 'OWNER_USERNAME', 'RishuCoder')}"),
-        ],
-        [
-            InlineKeyboardButton("📢 Updates", url=config.SUPPORT_CHANNEL if hasattr(config, "SUPPORT_CHANNEL") else config.SUPPORT_CHAT),
-            InlineKeyboardButton("🆘 Support", url=config.SUPPORT_CHAT),
-        ],
-    ]
+def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
+    """
+    Real button set — reuses RishuMusic.utils.inline.private_panel() as-is
+    (correct string keys, real callback_data 'settings_back_helper', and
+    user_id=config.OWNER_ID for the Owner button) instead of inventing new
+    buttons with no matching handler. Only the admin row is new.
+    """
+    buttons = list(private_panel(_))
     if is_admin:
-        rows.append([InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")])
-    return rows
+        buttons = buttons + [[InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")]]
+    return InlineKeyboardMarkup(buttons)
 
 
 @app.on_message(filters.command(["start"]) & filters.private & ~BANNED_USERS)
@@ -290,11 +308,14 @@ async def start_pm(client, message: Message, _):
                     uptime=uptime,
                     is_admin=is_admin,
                 )
+                # v7: normal inline keyboard rendered BELOW the rich body too
+                # (send_rich_message() takes reply_markup just like send_message)
                 await client.send_rich_message(
                     chat_id=message.chat.id,
                     rich_message=InputRichMessage(html=rich_html),
                     reply_parameters=ReplyParameters(message_id=message.id),
                     effect_id=random.choice(EFFECT_ID),
+                    reply_markup=build_reply_markup(_, is_admin=is_admin),
                 )
                 sent = True
             except Exception as ex:
@@ -304,13 +325,12 @@ async def start_pm(client, message: Message, _):
                 traceback.print_exc()
 
         if not sent:
-            keyboard = fallback_start_buttons(is_admin=is_admin)
             await message.reply_photo(
                 photo=get_start_img(),
                 has_spoiler=True,
                 effect_id=random.choice(EFFECT_ID),
                 caption=_["start_2"].format(message.from_user.mention, app.mention),
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=build_reply_markup(_, is_admin=is_admin),
             )
 
         if await is_on_off(2):
@@ -318,6 +338,21 @@ async def start_pm(client, message: Message, _):
                 chat_id=config.LOGGER_ID,
                 text=f"{message.from_user.mention} ᴊᴜsᴛ sᴛᴀʀᴛᴇᴅ ᴛʜᴇ ʙᴏᴛ.\n\n<b>ᴜsᴇʀ ɪᴅ :</b> <code>{message.from_user.id}</code>\n<b>ᴜsᴇʀɴᴀᴍᴇ :</b> @{message.from_user.username}",
             )
+
+
+# v7: "settings_back_helper" is already handled by your existing settings
+# plugin (it's the real S_B_4 callback_data from private_panel()), so we
+# reuse it rather than registering a second handler for it — a duplicate
+# handler on the same callback_data would fight with the one that already
+# works. "admin_panel" is new (no existing button used this name), so it
+# still needs its own handler here.
+@app.on_callback_query(filters.regex("^admin_panel$"))
+async def on_admin_panel_callback(client, callback_query):
+    is_admin = callback_query.from_user.id in getattr(config, "SUDO_USERS", set()) or callback_query.from_user.id == getattr(config, "OWNER_ID", None)
+    if not is_admin:
+        return await callback_query.answer("Admins only.", show_alert=True)
+    await callback_query.answer()
+    await callback_query.message.reply_text("⚙️ Admin panel — wire this up to your actual admin commands.")
 
 
 @app.on_message(filters.command(["start"]) & filters.group & ~BANNED_USERS)

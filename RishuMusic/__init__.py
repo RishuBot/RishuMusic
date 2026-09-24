@@ -1,4 +1,4 @@
-from RishuMusic.core.bot import shree
+from RishuMusic.core.bot import Shree as shree
 from RishuMusic.core.dir import dirr
 from RishuMusic.core.git import git
 from RishuMusic.core.userbot import Userbot

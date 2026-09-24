@@ -19,3 +19,6 @@ async def ShreeBin(text):
         return
     link = BASE + resp["message"]
     return link
+
+
+shreeBin = ShreeBin

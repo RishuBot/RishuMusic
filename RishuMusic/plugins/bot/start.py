@@ -1,5 +1,16 @@
 # ============================================================
-# start.py — v12
+# start.py — v13
+# CHANGELOG (v12 -> v13):
+#   - No access to container logs, but rich message keeps silently falling
+#     back to plain photo (inline keyboard shows, rich body doesn't) — so
+#     surfaced the failure inside Telegram instead. If you (an admin/owner,
+#     per config.SUDO_USERS/OWNER_ID) run /start and rich delivery fails
+#     after all retries, the bot now sends you a SECOND message right there
+#     with the exact exception text, e.g.
+#       ⚠️ Rich /start failed, sent plain fallback.
+#       BUTTON_URL_INVALID (with url buttons): ...
+#     Send me that text and I can fix the actual cause directly — no logs
+#     needed. Regular (non-admin) users never see this extra message.
 # CHANGELOG (v11 -> v12):
 #   - Added more body text: extra items in WHAT I CAN DO, a new
 #     "WHY THIS BOT" paragraph, and a footer tip line below the buttons.
@@ -436,6 +447,7 @@ async def start_pm(client, message: Message, _):
         is_admin = message.from_user.id in getattr(config, "SUDO_USERS", set()) or message.from_user.id == getattr(config, "OWNER_ID", None)
 
         sent = False
+        last_error = None
         if RICH_MESSAGES_SUPPORTED:
             try:
                 await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True, url_buttons=True)
@@ -443,25 +455,27 @@ async def start_pm(client, message: Message, _):
             except ButtonUrlInvalid as ex:
                 # A url-type button (Add to Group / Support) was rejected —
                 # retry keeping only the callback-data buttons (Help/Admin).
-                print(f"[start_pm] BUTTON_URL_INVALID, retrying without url buttons: {ex}")
+                last_error = f"BUTTON_URL_INVALID (with url buttons): {ex}"
                 try:
                     await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True, url_buttons=False)
                     sent = True
                 except ButtonUrlInvalid as ex2:
-                    print(f"[start_pm] still invalid, retrying with no buttons at all: {ex2}")
+                    last_error = f"BUTTON_URL_INVALID (callback buttons only): {ex2}"
                     try:
                         await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=False)
                         sent = True
                     except Exception as ex3:
-                        print(f"[start_pm] retry without buttons failed, falling back: {ex3}")
+                        last_error = f"{type(ex3).__name__} (no buttons at all): {ex3}"
                         traceback.print_exc()
                 except Exception as ex2:
-                    print(f"[start_pm] retry without url buttons failed, falling back: {ex2}")
+                    last_error = f"{type(ex2).__name__} (callback buttons only): {ex2}"
                     traceback.print_exc()
             except Exception as ex:
                 # Fork/server doesn't actually support it yet — fall back below.
-                print(f"[start_pm] send_rich_message failed, falling back: {ex}")
+                last_error = f"{type(ex).__name__} (first attempt): {ex}"
                 traceback.print_exc()
+        else:
+            last_error = "RICH_MESSAGES_SUPPORTED is False (InputRichMessage/ReplyParameters not importable)"
 
         if not sent:
             await message.reply_photo(
@@ -471,6 +485,16 @@ async def start_pm(client, message: Message, _):
                 caption=_["start_2"].format(message.from_user.mention, app.mention),
                 reply_markup=build_reply_markup(_, is_admin=is_admin),
             )
+            # No container-log access? This puts the exact failure reason
+            # straight into Telegram instead, visible only to admins.
+            if is_admin and last_error:
+                try:
+                    await message.reply_text(
+                        f"⚠️ <b>Rich /start failed, sent plain fallback.</b>\n<code>{escape(last_error)}</code>",
+                        quote=False,
+                    )
+                except Exception:
+                    pass
 
         if await is_on_off(2):
             return await app.send_message(

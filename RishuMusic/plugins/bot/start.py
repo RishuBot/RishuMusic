@@ -1,5 +1,22 @@
 # ============================================================
-# start.py — v10
+# start.py — v11
+# CHANGELOG (v10 -> v11):
+#   - Your logs showed TWO separate errors:
+#       1) ButtonUrlInvalid on the first send (a url-type <tg-button> —
+#          Add to Group or Support — was rejected).
+#       2) EffectIdInvalid on the retry — this only surfaced once buttons
+#          were dropped, proving effect_id itself is the problem on
+#          send_rich_message (random.choice(EFFECT_ID) picks a different id
+#          each retry, and this endpoint doesn't accept these ids the same
+#          way normal send_message does).
+#   - FIX: dropped effect_id from send_rich_message entirely (kept only on
+#     the reply_photo fallback, where it's known to work).
+#   - FIX: retry cascade is now 3-level instead of 2:
+#       all buttons -> callback-only buttons (drops Add to Group/Support
+#       URLs, keeps Help/Admin) -> no buttons at all -> reply_photo.
+#     Added a debug print of add_url/support_url so the container logs show
+#     exactly which URL value is being sent (check SUPPORT_CHANNEL / bot
+#     username in your logs after the next /start if it still fails).
 # CHANGELOG (v9 -> v10):
 #   - REAL FIX for rich buttons never appearing: your rich_ui.py reference
 #     confirms the actual Bot API 10.3 tag is
@@ -220,6 +237,7 @@ def rich_start_html(
     uptime: str,
     is_admin: bool = False,
     with_buttons: bool = True,
+    url_buttons: bool = True,
 ) -> str:
     """
     Bot API 10.3 rich-message body for the private /start screen:
@@ -275,13 +293,14 @@ def rich_start_html(
     # the rich body, the reply_markup row sits under the whole message.
     button_lines = []
 
-    add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
-    if add_url:
-        button_lines.append(rich_button(escape(_["S_B_3"]), url=add_url, style="primary"))
-
-    support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
-    if support_url:
-        button_lines.append(rich_button(escape(_["S_B_5"]), url=support_url, style="primary"))
+    if url_buttons:
+        add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
+        support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
+        print(f"[rich_start_html] add_url={add_url!r} support_url={support_url!r}")
+        if add_url:
+            button_lines.append(rich_button(escape(_["S_B_3"]), url=add_url, style="primary"))
+        if support_url:
+            button_lines.append(rich_button(escape(_["S_B_5"]), url=support_url, style="primary"))
 
     button_lines.append(
         rich_button(escape(_["S_B_4"]), callback_data="settings_back_helper", style="success")
@@ -308,7 +327,9 @@ def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(buttons)
 
 
-async def _send_rich_start(client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool):
+async def _send_rich_start(
+    client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool, url_buttons: bool = True
+):
     rich_html = rich_start_html(
         _,
         user_mention=rich_user_name(message.from_user),
@@ -316,12 +337,15 @@ async def _send_rich_start(client, message: Message, _, uptime: str, is_admin: b
         uptime=uptime,
         is_admin=is_admin,
         with_buttons=with_buttons,
+        url_buttons=url_buttons,
     )
+    # effect_id dropped here: it triggered EFFECT_ID_INVALID on send_rich_message
+    # even though the same IDs work fine on the reply_photo fallback below —
+    # this rich-message endpoint doesn't seem to accept it the same way.
     await client.send_rich_message(
         chat_id=message.chat.id,
         rich_message=InputRichMessage(html=rich_html),
         reply_parameters=ReplyParameters(message_id=message.id),
-        effect_id=random.choice(EFFECT_ID),
         reply_markup=build_reply_markup(_, is_admin=is_admin),
     )
 
@@ -394,16 +418,25 @@ async def start_pm(client, message: Message, _):
         sent = False
         if RICH_MESSAGES_SUPPORTED:
             try:
-                await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True)
+                await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True, url_buttons=True)
                 sent = True
             except ButtonUrlInvalid as ex:
-                # A button URL in the rich body was rejected — retry without body buttons.
-                print(f"[start_pm] BUTTON_URL_INVALID in rich body, retrying without buttons: {ex}")
+                # A url-type button (Add to Group / Support) was rejected —
+                # retry keeping only the callback-data buttons (Help/Admin).
+                print(f"[start_pm] BUTTON_URL_INVALID, retrying without url buttons: {ex}")
                 try:
-                    await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=False)
+                    await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True, url_buttons=False)
                     sent = True
+                except ButtonUrlInvalid as ex2:
+                    print(f"[start_pm] still invalid, retrying with no buttons at all: {ex2}")
+                    try:
+                        await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=False)
+                        sent = True
+                    except Exception as ex3:
+                        print(f"[start_pm] retry without buttons failed, falling back: {ex3}")
+                        traceback.print_exc()
                 except Exception as ex2:
-                    print(f"[start_pm] retry without buttons failed, falling back: {ex2}")
+                    print(f"[start_pm] retry without url buttons failed, falling back: {ex2}")
                     traceback.print_exc()
             except Exception as ex:
                 # Fork/server doesn't actually support it yet — fall back below.

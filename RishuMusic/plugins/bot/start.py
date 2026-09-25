@@ -1,5 +1,11 @@
 # ============================================================
-# start.py — v11
+# start.py — v12
+# CHANGELOG (v11 -> v12):
+#   - Added more body text: extra items in WHAT I CAN DO, a new
+#     "WHY THIS BOT" paragraph, and a footer tip line below the buttons.
+#   - Buttons themselves are unchanged from v11 — still need your logs
+#     (the [rich_start_html] add_url=/support_url= print + whichever
+#     exception fires after /start) to confirm they're landing now.
 # CHANGELOG (v10 -> v11):
 #   - Your logs showed TWO separate errors:
 #       1) ButtonUrlInvalid on the first send (a url-type <tg-button> —
@@ -265,8 +271,22 @@ def rich_start_html(
         f"{custom_emoji('🚀')} Stream music &amp; video in voice chats<br/>"
         f"{custom_emoji('🔗')} Play from YouTube, Spotify links &amp; more<br/>"
         f"{custom_emoji('📊')} Smart autoplay with mood-based picks<br/>"
-        f"{custom_emoji('🏠')} Reliable, MongoDB-backed play history"
+        f"{custom_emoji('🏠')} Reliable, MongoDB-backed play history<br/>"
+        f"{custom_emoji('📢')} Works in groups, channels &amp; voice chats alike<br/>"
+        f"{custom_emoji('🎉')} Playlists, queue control &amp; loop modes built in"
         "</blockquote>"
+    )
+
+    why_us = (
+        "<h2>WHY THIS BOT</h2>"
+        "<p>Built for speed and uptime — no lag, no dropped calls, "
+        "and your queue survives restarts. New features ship often, "
+        "and support is one tap away if anything ever breaks.</p>"
+    )
+
+    footer = (
+        "<p><i>Tip: use /help anytime to see the full command list. "
+        f"{custom_emoji('🆘')} Stuck? Tap Support below.</i></p>"
     )
 
     # Real Bot API rich blocks: <details>/<summary> is the actual open/close
@@ -284,9 +304,9 @@ def rich_start_html(
         + "</details>"
     )
 
-    body = slideshow + heading + features + snapshot
+    body = slideshow + heading + features + why_us + snapshot
     if not with_buttons:
-        return body
+        return body + footer
 
     # ---- rich buttons (real <tg-button> tags). Also passed as a normal
     # inline reply_markup below — Telegram renders BOTH: these sit inside
@@ -311,7 +331,7 @@ def rich_start_html(
         )
 
     buttons = "<p>" + "<br/>".join(button_lines) + "</p>"
-    return body + buttons
+    return body + buttons + footer
 
 
 def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:

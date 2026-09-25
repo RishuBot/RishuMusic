@@ -1,5 +1,39 @@
 # ============================================================
-# start.py — v8
+# start.py — v10
+# CHANGELOG (v9 -> v10):
+#   - REAL FIX for rich buttons never appearing: your rich_ui.py reference
+#     confirms the actual Bot API 10.3 tag is
+#         <tg-button url="...">text</tg-button>
+#         <tg-button callback_data="...">text</tg-button>
+#     My earlier <tg-button-row><tg-button type="url" data="...">...
+#     was an invented tag/attrs from before I had this reference — Telegram
+#     silently dropped the whole unknown block, which is why nothing showed.
+#     Rewrote all rich buttons with the confirmed url=/callback_data= form.
+#   - Table IS a real rich tag (confirmed by rich_ui.py's rich_table()) — no
+#     need to avoid it. "BOT SNAPSHOT" is now a real open/close element too:
+#     wrapped in <details><summary>...</summary><table>...</table></details>,
+#     so it's collapsed-by-default AND still a table, not a tradeoff.
+#   - Both button paths are kept, as asked: the rich <tg-button> elements
+#     inside the message body, AND the normal inline reply_markup keyboard
+#     below the message (build_reply_markup / private_panel) — Telegram
+#     renders both at once.
+# CHANGELOG (v8 -> v9):
+#   - "BOT SNAPSHOT" is no longer a <table> (Telegram's supported HTML tag
+#     set for messages does NOT include table/tr/td/th, so it either did
+#     nothing or rendered as raw text). Replaced with a real Bot API
+#     feature: <blockquote expandable="expandable"> — a genuine collapsed
+#     "Show more / Show less" block. This is the "open/close type" you
+#     asked for, and it's standard HTML-mode Telegram, not fork-specific.
+#   - HTML tightened: every dynamic value going into the rich body now
+#     goes through escape() (uptime, plan already did; nothing user-typed
+#     was unescaped, kept it that way).
+#   - Buttons: unchanged from v8 — they're built in rich_start_html()
+#     (Add to Group / Support / Help / Admin) AND passed again as a normal
+#     inline reply_markup via build_reply_markup(), which is the
+#     guaranteed-to-render path regardless of rich-body button support.
+#     If they still don't show after this deploy, send a screenshot
+#     scrolled to the very bottom of the message (buttons render after
+#     the blockquote) plus the container logs right after /start.
 # CHANGELOG (v7 -> v8):
 #   - FIX: 400 BUTTON_URL_INVALID on send_rich_message() in start_pm.
 #     Causes removed:
@@ -129,6 +163,51 @@ def safe_url(u):
     return None
 
 
+def rich_user_name(user) -> str:
+    """
+    HTML-safe bold name for the rich body. Do NOT use user.mention here:
+    Kurigram's .mention returns a raw <a href=tg://...> string which the rich
+    parser shows as literal text (and names like '</3' would break the HTML).
+    """
+    name = " ".join(p for p in [user.first_name, user.last_name] if p) or "User"
+    return f"<b>{escape(name)}</b>"
+
+
+def rich_bot_name() -> str:
+    """HTML-safe bot name, linked to the bot via a normal https://t.me link."""
+    name = escape(str(getattr(app, "name", None) or getattr(app, "first_name", None) or "RishuMusic"))
+    username = getattr(app, "username", None)
+    if username:
+        return f'<a href="https://t.me/{username}">{name}</a>'
+    return name
+
+
+def rich_button(text: str, url: str = None, callback_data: str = None, style: str = None) -> str:
+    """
+    Real Bot API 10.3 rich-message button: <tg-button url="..."> or
+    <tg-button callback_data="...">. NOT <tg-button-row>/type=/data= — that
+    was an invented tag/attrs from an earlier version and Telegram silently
+    dropped it, which is why no rich buttons ever appeared.
+    """
+    style_attr = f' style="{escape(style, quote=True)}"' if style else ""
+    if callback_data:
+        return f'<tg-button callback_data="{escape(callback_data, quote=True)}"{style_attr}>{text}</tg-button>'
+    if url:
+        return f'<tg-button url="{escape(url, quote=True)}"{style_attr}>{text}</tg-button>'
+    return f"<tg-button{style_attr}>{text}</tg-button>"
+
+
+def rich_table(headers, rows, border: int = 1) -> str:
+    """Real <table> rich block. Cells are emitted verbatim (escape values yourself first)."""
+    parts = [f'<table border="{int(border)}">']
+    if headers:
+        parts.append("<tr>" + "".join(f"<th>{h}</th>" for h in headers) + "</tr>")
+    for row in rows or ():
+        parts.append("<tr>" + "".join(f"<td>{'' if c is None else c}</td>" for c in row) + "</tr>")
+    parts.append("</table>")
+    return "".join(parts)
+
+
 def get_start_img() -> str:
     """Returns a random start image URL (used by both the slideshow and the fallback photo)."""
     return random.choice(Kanha_Pic)
@@ -143,9 +222,10 @@ def rich_start_html(
     with_buttons: bool = True,
 ) -> str:
     """
-    Real Bot API 10.3 rich-message body for the private /start screen:
-    <tg-slideshow> + heading + feature list + snapshot blockquote + <tg-button-row>s.
-    with_buttons=False builds the body without any button rows (retry path).
+    Bot API 10.3 rich-message body for the private /start screen:
+    <tg-slideshow> + heading + feature list + <details>/<summary>+<table>
+    snapshot + real <tg-button> elements. with_buttons=False builds the body
+    without buttons (retry path).
     """
     slideshow = (
         "<tg-slideshow>"
@@ -157,7 +237,7 @@ def rich_start_html(
     heading = (
         f"<h1>{custom_emoji('💎')} {bot_mention} • Music Hub</h1>"
         f"<p><i>Fast • clean • powerful voice-chat streaming</i></p>"
-        f"<p>{custom_emoji('❤️')} <b>Welcome, {user_mention}</b><br/>"
+        f"<p>{custom_emoji('❤️')} <b>Welcome,</b> {user_mention}<br/>"
         f"<i>Send /play with a song name or link to get started.</i></p>"
     )
 
@@ -171,55 +251,47 @@ def rich_start_html(
         "</blockquote>"
     )
 
-    table = (
-        "<h2>BOT SNAPSHOT</h2>"
-        "<table>"
-        "<tr><th>Field</th><th>Value</th></tr>"
-        f"<tr><td>Status</td><td>{custom_emoji('✅')} Online</td></tr>"
-        f"<tr><td>Uptime</td><td>{escape(uptime)}</td></tr>"
-        f"<tr><td>Plan</td><td>{'Admin' if is_admin else 'Free'}</td></tr>"
-        "</table>"
+    # Real Bot API rich blocks: <details>/<summary> is the actual open/close
+    # (collapsed-by-default, tap-to-expand) element, and it can wrap a real
+    # <table> just fine — so "table" and "open/close" aren't a tradeoff.
+    snapshot_rows = [
+        (f"{custom_emoji('✅')} Status", "Online"),
+        ("⏱ Uptime", escape(uptime)),
+        ("👤 Plan", "Admin" if is_admin else "Free"),
+    ]
+    snapshot = (
+        "<details>"
+        "<summary><h2>BOT SNAPSHOT</h2></summary>"
+        + rich_table(None, [(f"<b>{k}</b>", v) for k, v in snapshot_rows])
+        + "</details>"
     )
 
-    body = slideshow + heading + features + table
+    body = slideshow + heading + features + snapshot
     if not with_buttons:
         return body
 
-    # ---- button rows (only URLs that pass safe_url are added) ----
-    buttons = ""
+    # ---- rich buttons (real <tg-button> tags). Also passed as a normal
+    # inline reply_markup below — Telegram renders BOTH: these sit inside
+    # the rich body, the reply_markup row sits under the whole message.
+    button_lines = []
 
     add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
     if add_url:
-        buttons += (
-            '<tg-button-row align="center">'
-            f'<tg-button type="url" style="primary" data="{escape(add_url, quote=True)}">'
-            f"{escape(_['S_B_3'])}</tg-button>"
-            "</tg-button-row>"
-        )
+        button_lines.append(rich_button(escape(_["S_B_3"]), url=add_url, style="primary"))
 
     support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
     if support_url:
-        buttons += (
-            '<tg-button-row align="center">'
-            f'<tg-button type="url" style="primary" data="{escape(support_url, quote=True)}">'
-            f"{escape(_['S_B_5'])}</tg-button>"
-            "</tg-button-row>"
-        )
+        button_lines.append(rich_button(escape(_["S_B_5"]), url=support_url, style="primary"))
 
-    buttons += (
-        '<tg-button-row align="center">'
-        f'<tg-button type="callback_data" style="success" data="settings_back_helper">'
-        f"{escape(_['S_B_4'])}</tg-button>"
-        "</tg-button-row>"
+    button_lines.append(
+        rich_button(escape(_["S_B_4"]), callback_data="settings_back_helper", style="success")
     )
     if is_admin:
-        buttons += (
-            '<tg-button-row align="center">'
-            f'<tg-button type="callback_data" style="danger" data="admin_panel">'
-            f"{custom_emoji('⚙️')} Admin Panel</tg-button>"
-            "</tg-button-row>"
+        button_lines.append(
+            rich_button(f"{custom_emoji('⚙️')} Admin Panel", callback_data="admin_panel", style="danger")
         )
 
+    buttons = "<p>" + "<br/>".join(button_lines) + "</p>"
     return body + buttons
 
 
@@ -239,8 +311,8 @@ def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
 async def _send_rich_start(client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool):
     rich_html = rich_start_html(
         _,
-        user_mention=message.from_user.mention,
-        bot_mention=app.mention,
+        user_mention=rich_user_name(message.from_user),
+        bot_mention=rich_bot_name(),
         uptime=uptime,
         is_admin=is_admin,
         with_buttons=with_buttons,

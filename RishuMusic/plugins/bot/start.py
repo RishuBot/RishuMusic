@@ -1,5 +1,19 @@
 # ============================================================
-# start.py — v16
+# start.py — v17
+# CHANGELOG (v16 -> v17):
+#   - New error from your logs: BUTTON_DATA_INVALID on the
+#     type="callback_data" tg-button (Help/Settings pill). So the url-type
+#     fix from v16 was right (no more ButtonUrlInvalid!), but
+#     type="callback_data" is NOT actually supported the same way — it's
+#     not just missing an attribute, it genuinely errors. The reference
+#     repo (ShizuMusic) never uses a callback-type tg-button either — its
+#     Help/Admin buttons live ONLY in the reply_markup, never in the rich
+#     body. Matched that: dropped callback_data tg-buttons from the rich
+#     body entirely. Only URL-type pills (Add to Group / Support) remain
+#     inside the message text now.
+#   - Help/Settings/Owner/Admin are reachable exactly as before, via the
+#     guaranteed reply_markup (build_reply_markup) under the message —
+#     nothing lost, just moved to the path that's actually confirmed to work.
 # CHANGELOG (v15 -> v16):
 #   - REAL fix, confirmed against a live working bot
 #     (github.com/Badmunda05/ShizuMusic): the missing piece in every
@@ -374,10 +388,10 @@ def rich_start_html(
     if not with_buttons:
         return body + footer
 
-    # tg-button syntax now matches the confirmed-working ShizuMusic pattern
-    # (type="url"/"callback_data" + style + url/callback_data), wrapped in
-    # <p> exactly like their _support_updates_pills() — <p> was never the
-    # problem, the missing type= attribute was.
+    # BUTTON_DATA_INVALID confirmed: type="callback_data" tg-button doesn't
+    # actually work on this endpoint (the reference repo never used it
+    # either — its help/admin buttons are ONLY in the reply_markup below,
+    # never as an in-body tg-button). Keeping ONLY url-type pills here.
     button_pills = []
     add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
     if add_url:
@@ -385,13 +399,11 @@ def rich_start_html(
     support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
     if support_url:
         button_pills.append(rich_button(escape(_["S_B_5"]), url=support_url, style="success"))
-    button_pills.append(rich_button(escape(_["S_B_4"]), callback_data="settings_back_helper", style="primary"))
-    if is_admin:
-        button_pills.append(
-            rich_button(f"{custom_emoji('⚙️')} Admin Panel", callback_data="admin_panel", style="danger")
-        )
-    rich_buttons = "<p>" + " ".join(button_pills) + "</p>"
 
+    if not button_pills:
+        return body + footer
+
+    rich_buttons = "<p>" + " ".join(button_pills) + "</p>"
     return body + rich_buttons + footer
 
 

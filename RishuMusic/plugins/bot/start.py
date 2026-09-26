@@ -1,5 +1,25 @@
 # ============================================================
-# start.py — v18
+# start.py — v19
+# CHANGELOG (v18 -> v19):
+#   - Your screenshot showed two bugs:
+#     1) Collapsed "WHY THIS BOT" / "BOT SNAPSHOT" showed ONLY the arrow —
+#        no title text at all. Cause: <h2> and a nested <a> link inside
+#        <summary> silently broke rendering of the whole summary. Fixed by
+#        keeping <summary> content plain (text + <b> + <tg-emoji> only, no
+#        <h2>, no nested <a>) — title now shows next to the arrow. The
+#        tappable bot-link idea was dropped from the title; the Add to
+#        Group button already covers "tap to go to the bot".
+#     2) Every icon in the message was some random unrelated sticker
+#        (paper plane instead of rocket, coins instead of star, etc.) —
+#        those were guessed/placeholder emoji-IDs in this file's old local
+#        map, never verified. Switched custom_emoji() to pull IDs straight
+#        from the real, verified registry in premium_emojis.py (backed by
+#        utils/data/custom_emoji_ids.json) — every icon now matches its
+#        actual emoji.
+#   - REQUIRES premium_emojis.py + data/custom_emoji_ids.json to already be
+#     in place (RishuMusic/utils/premium_emojis.py and
+#     RishuMusic/utils/data/custom_emoji_ids.json) — this file imports
+#     render() from there directly now.
 # CHANGELOG (v17 -> v18):
 #   - Custom-emoji IDs moved to one shared file, as asked:
 #     RishuMusic/utils/premium_emojis.py holds every ID + a pemoji(name,
@@ -228,27 +248,19 @@ Kanha_Pic = [
     "https://files.catbox.moe/vbgrx1.jpg",
 ]
 
-# Custom-emoji IDs now live in one shared file so every plugin can reuse
-# them: RishuMusic/utils/premium_emojis.py. custom_emoji() below is kept as
-# a thin wrapper so every existing custom_emoji('🚀') call in this file
-# keeps working unchanged.
-from RishuMusic.utils.premium_emojis import pemoji
-
-_EMOJI_NAME_BY_GLYPH = {
-    "🚀": "rocket", "💎": "diamond", "👤": "user", "🔗": "link",
-    "❤️": "heart", "🏠": "house", "⚙️": "gear", "✅": "check",
-    "📊": "chart", "🎉": "party", "📢": "megaphone", "🆘": "sos",
-}
+# Custom-emoji IDs now live in one shared, VERIFIED file:
+# RishuMusic/utils/premium_emojis.py (JSON-backed, real document IDs — the
+# earlier guessed ID map here was rendering random unrelated stickers).
+from RishuMusic.utils.premium_emojis import render as _render_emoji
 
 
-def custom_emoji(name: str) -> str:
+def custom_emoji(glyph: str) -> str:
     """
-    Real Bot API custom-emoji HTML tag: <tg-emoji emoji-id="...">🔥</tg-emoji>.
-    Looks the glyph up in premium_emojis.py; falls back to the plain emoji
-    if it's not registered there.
+    Real Bot API custom-emoji HTML tag: <tg-emoji emoji-id="...">🔥</tg-emoji>,
+    looked up directly by the emoji glyph in the verified JSON registry.
+    Falls back to the plain glyph if it's not registered there.
     """
-    key = _EMOJI_NAME_BY_GLYPH.get(name)
-    return pemoji(key, name) if key else name
+    return _render_emoji(glyph, glyph)
 
 
 def safe_url(u):
@@ -375,7 +387,7 @@ def rich_start_html(
     ]
     why_us = (
         "<details>"
-        f"<summary><h2>{pemoji('star', '⭐')} WHY THIS BOT</h2></summary>"
+        f"<summary>{custom_emoji('⭐')} <b>WHY THIS BOT</b></summary>"
         + rich_table(None, [(f"<b>{k}</b>", v) for k, v in why_us_rows])
         + "</details>"
     )
@@ -387,21 +399,19 @@ def rich_start_html(
 
     # Real Bot API rich blocks: <details>/<summary> is the actual open/close
     # (collapsed-by-default, tap-to-expand) element, and it can wrap a real
-    # <table> just fine — so "table" and "open/close" aren't a tradeoff.
-    # Title dressed up with a link icon + the bot's own t.me link, matching
-    # the "aage title linko, mast sa" ask — tappable, not just decorative.
-    bot_link = f"https://t.me/{app.username}" if getattr(app, "username", None) else None
-    snapshot_title = f"{pemoji('link', '🔗')} <b>BOT SNAPSHOT</b>"
-    if bot_link:
-        snapshot_title = f'{pemoji("link", "🔗")} <a href="{escape(bot_link, quote=True)}"><b>BOT SNAPSHOT</b></a>'
+    # <table> just fine. FIX: the title was rendering BLANK (only the arrow
+    # showed) — <h2> and a nested <a> link inside <summary> broke it.
+    # <summary> only reliably shows plain inline content (text + <b> +
+    # <tg-emoji>), so that's all it gets now; the tappable bot link moved
+    # to the Add to Group button below instead.
     snapshot_rows = [
         (f"{custom_emoji('✅')} Status", "Online"),
-        (f"{pemoji('clock', '⏱')} Uptime", escape(uptime)),
+        (f"{custom_emoji('⏱')} Uptime", escape(uptime)),
         (f"{custom_emoji('👤')} Plan", "Admin" if is_admin else "Free"),
     ]
     snapshot = (
         "<details>"
-        f"<summary><h2>{snapshot_title}</h2></summary>"
+        f"<summary>{custom_emoji('🔗')} <b>BOT SNAPSHOT</b></summary>"
         + rich_table(None, [(f"<b>{k}</b>", v) for k, v in snapshot_rows])
         + "</details>"
     )

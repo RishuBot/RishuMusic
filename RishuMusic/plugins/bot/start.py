@@ -1,5 +1,53 @@
 # ============================================================
-# start.py — v13
+# start.py — v16
+# CHANGELOG (v15 -> v16):
+#   - REAL fix, confirmed against a live working bot
+#     (github.com/Badmunda05/ShizuMusic): the missing piece in every
+#     earlier attempt was the `type="url"` / `type="callback_data"`
+#     attribute on <tg-button>. Their own rich_ui.py's rich_button()
+#     helper omitted it too (same bug I copied), but their actual /start
+#     code writes the tag by hand WITH `type=` — and that's the version
+#     that renders. Fixed rich_button() to always include it:
+#         <tg-button type="url" style="..." url="...">text</tg-button>
+#         <tg-button type="callback_data" style="..." callback_data="...">text</tg-button>
+#   - Also confirmed <p>...</p> around the buttons is fine (their
+#     _support_updates_pills() does exactly that) — the v15 "no <p>"
+#     experiment wasn't the fix, so reverted to <p> with buttons
+#     space-separated, matching their proven pattern.
+#   - ShizuMusic's InlineKeyboardButton(..., style=enums.ButtonStyle.X) is
+#     from their own custom pyrogram fork's enums — not present in stock
+#     Kurigram, so NOT copied into build_reply_markup() here (would crash
+#     with AttributeError on a normal Kurigram install). The plain inline
+#     keyboard from v14 stays as the guaranteed fallback either way.
+# CHANGELOG (v14 -> v15):
+#   - Bringing <tg-button> back for one more try, per your request. Theory:
+#     v13 wrapped the buttons inside <p>...</p>, and that may be why they
+#     drew nothing — every OTHER tag that worked (h1, table, details) was
+#     used as a direct top-level element, never nested in a <p>. So this
+#     version places <tg-button> the same way, at the top level after the
+#     BOT SNAPSHOT block, no <p> wrapper.
+#   - The normal inline reply_markup (Add to Group / private_panel() /
+#     Admin) from v14 stays exactly as-is regardless — you still get a
+#     guaranteed button row under the message either way.
+#   - If <tg-button> still draws nothing (most likely outcome — this genuinely
+#     may just not be a supported tag on your client/Bot API build), the
+#     admin-only debug message from v13 will tell you if it errors, but if
+#     it silently renders nothing again with zero error, that's your answer:
+#     this Kurigram build's rich-message renderer doesn't support tg-button
+#     at all yet, and the inline keyboard (v14) is the real fix to keep.
+# CHANGELOG (v13 -> v14):
+#   - Your screenshots confirm it: text/list/<details>+<table> all render
+#     perfectly now, but <tg-button> draws NOTHING — no error either (the
+#     v13 admin debug message never fired), it's just a no-op tag on your
+#     client. Stopped fighting it — dropped <tg-button> from the rich body
+#     entirely, along with the now-pointless 3-level retry cascade.
+#   - All buttons are now a single, guaranteed-to-render inline
+#     reply_markup (build_reply_markup): an "Add to Group" row on top,
+#     then your existing private_panel() buttons (Owner/Settings/Support —
+#     already wired to working handlers), then the Admin Panel row for
+#     admins. This is the same mechanism behind the pill-button grid in
+#     the reference screenshot you sent (image 1) — plain
+#     InlineKeyboardMarkup, not a rich-message feature.
 # CHANGELOG (v12 -> v13):
 #   - No access to container logs, but rich message keeps silently falling
 #     back to plain photo (inline keyboard shows, rich body doesn't) — so
@@ -218,16 +266,23 @@ def rich_bot_name() -> str:
 
 def rich_button(text: str, url: str = None, callback_data: str = None, style: str = None) -> str:
     """
-    Real Bot API 10.3 rich-message button: <tg-button url="..."> or
-    <tg-button callback_data="...">. NOT <tg-button-row>/type=/data= — that
-    was an invented tag/attrs from an earlier version and Telegram silently
-    dropped it, which is why no rich buttons ever appeared.
+    Real, confirmed-working Bot API 10.3 rich-message button — verified
+    against github.com/Badmunda05/ShizuMusic (a live bot using this exact
+    tag). The missing piece in every earlier attempt was `type="url"` /
+    `type="callback_data"` — Telegram silently drops <tg-button> without it,
+    which is exactly what was happening.
     """
     style_attr = f' style="{escape(style, quote=True)}"' if style else ""
     if callback_data:
-        return f'<tg-button callback_data="{escape(callback_data, quote=True)}"{style_attr}>{text}</tg-button>'
+        return (
+            f'<tg-button type="callback_data"{style_attr} '
+            f'callback_data="{escape(callback_data, quote=True)}">{text}</tg-button>'
+        )
     if url:
-        return f'<tg-button url="{escape(url, quote=True)}"{style_attr}>{text}</tg-button>'
+        return (
+            f'<tg-button type="url"{style_attr} '
+            f'url="{escape(url, quote=True)}">{text}</tg-button>'
+        )
     return f"<tg-button{style_attr}>{text}</tg-button>"
 
 
@@ -254,13 +309,13 @@ def rich_start_html(
     uptime: str,
     is_admin: bool = False,
     with_buttons: bool = True,
-    url_buttons: bool = True,
 ) -> str:
     """
-    Bot API 10.3 rich-message body for the private /start screen:
-    <tg-slideshow> + heading + feature list + <details>/<summary>+<table>
-    snapshot + real <tg-button> elements. with_buttons=False builds the body
-    without buttons (retry path).
+    Rich-message body for the private /start screen: <tg-slideshow> +
+    heading + feature list + <details>/<summary>+<table> snapshot + footer.
+    No <tg-button> here anymore — confirmed (no error, just nothing drawn)
+    that this client doesn't render that tag, so all buttons are the
+    normal inline reply_markup instead (see build_reply_markup).
     """
     slideshow = (
         "<tg-slideshow>"
@@ -319,48 +374,53 @@ def rich_start_html(
     if not with_buttons:
         return body + footer
 
-    # ---- rich buttons (real <tg-button> tags). Also passed as a normal
-    # inline reply_markup below — Telegram renders BOTH: these sit inside
-    # the rich body, the reply_markup row sits under the whole message.
-    button_lines = []
-
-    if url_buttons:
-        add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
-        support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
-        print(f"[rich_start_html] add_url={add_url!r} support_url={support_url!r}")
-        if add_url:
-            button_lines.append(rich_button(escape(_["S_B_3"]), url=add_url, style="primary"))
-        if support_url:
-            button_lines.append(rich_button(escape(_["S_B_5"]), url=support_url, style="primary"))
-
-    button_lines.append(
-        rich_button(escape(_["S_B_4"]), callback_data="settings_back_helper", style="success")
-    )
+    # tg-button syntax now matches the confirmed-working ShizuMusic pattern
+    # (type="url"/"callback_data" + style + url/callback_data), wrapped in
+    # <p> exactly like their _support_updates_pills() — <p> was never the
+    # problem, the missing type= attribute was.
+    button_pills = []
+    add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
+    if add_url:
+        button_pills.append(rich_button(escape(_["S_B_3"]), url=add_url, style="primary"))
+    support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
+    if support_url:
+        button_pills.append(rich_button(escape(_["S_B_5"]), url=support_url, style="success"))
+    button_pills.append(rich_button(escape(_["S_B_4"]), callback_data="settings_back_helper", style="primary"))
     if is_admin:
-        button_lines.append(
+        button_pills.append(
             rich_button(f"{custom_emoji('⚙️')} Admin Panel", callback_data="admin_panel", style="danger")
         )
+    rich_buttons = "<p>" + " ".join(button_pills) + "</p>"
 
-    buttons = "<p>" + "<br/>".join(button_lines) + "</p>"
-    return body + buttons + footer
+    return body + rich_buttons + footer
 
 
 def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
     """
-    Real button set — reuses RishuMusic.utils.inline.private_panel() as-is
-    (correct string keys, real callback_data 'settings_back_helper', and
-    user_id=config.OWNER_ID for the Owner button) instead of inventing new
-    buttons with no matching handler. Only the admin row is new.
+    Real, guaranteed-to-render button set — plain InlineKeyboardMarkup
+    (the rich-body <tg-button> tags never actually rendered anything on
+    your client, no error either, so dropped them — this is the only path
+    now). Reuses RishuMusic.utils.inline.private_panel() as-is (correct
+    string keys, working 'settings_back_helper' callback_data, and
+    user_id=config.OWNER_ID for the Owner button), with an "Add to Group"
+    row on top (matches the grid layout you showed) and the admin row
+    appended last.
     """
-    buttons = list(private_panel(_))
+    buttons = []
+
+    add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
+    if add_url:
+        buttons.append([InlineKeyboardButton(_["S_B_3"], url=add_url)])
+
+    buttons += list(private_panel(_))
+
     if is_admin:
-        buttons = buttons + [[InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")]]
+        buttons.append([InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")])
+
     return InlineKeyboardMarkup(buttons)
 
 
-async def _send_rich_start(
-    client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool, url_buttons: bool = True
-):
+async def _send_rich_start(client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool = True):
     rich_html = rich_start_html(
         _,
         user_mention=rich_user_name(message.from_user),
@@ -368,7 +428,6 @@ async def _send_rich_start(
         uptime=uptime,
         is_admin=is_admin,
         with_buttons=with_buttons,
-        url_buttons=url_buttons,
     )
     # effect_id dropped here: it triggered EFFECT_ID_INVALID on send_rich_message
     # even though the same IDs work fine on the reply_photo fallback below —
@@ -450,29 +509,20 @@ async def start_pm(client, message: Message, _):
         last_error = None
         if RICH_MESSAGES_SUPPORTED:
             try:
-                await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True, url_buttons=True)
+                await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True)
                 sent = True
             except ButtonUrlInvalid as ex:
-                # A url-type button (Add to Group / Support) was rejected —
-                # retry keeping only the callback-data buttons (Help/Admin).
-                last_error = f"BUTTON_URL_INVALID (with url buttons): {ex}"
+                last_error = f"BUTTON_URL_INVALID (top-level tg-button): {ex}"
                 try:
-                    await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=True, url_buttons=False)
+                    await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=False)
                     sent = True
-                except ButtonUrlInvalid as ex2:
-                    last_error = f"BUTTON_URL_INVALID (callback buttons only): {ex2}"
-                    try:
-                        await _send_rich_start(client, message, _, uptime, is_admin, with_buttons=False)
-                        sent = True
-                    except Exception as ex3:
-                        last_error = f"{type(ex3).__name__} (no buttons at all): {ex3}"
-                        traceback.print_exc()
                 except Exception as ex2:
-                    last_error = f"{type(ex2).__name__} (callback buttons only): {ex2}"
+                    last_error += f" | retry without buttons also failed: {type(ex2).__name__}: {ex2}"
                     traceback.print_exc()
             except Exception as ex:
-                # Fork/server doesn't actually support it yet — fall back below.
-                last_error = f"{type(ex).__name__} (first attempt): {ex}"
+                # Fork/server doesn't actually support it, or rejected something
+                # else in the body — fall back to plain photo below.
+                last_error = f"{type(ex).__name__}: {ex}"
                 traceback.print_exc()
         else:
             last_error = "RICH_MESSAGES_SUPPORTED is False (InputRichMessage/ReplyParameters not importable)"

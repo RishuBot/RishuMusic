@@ -1,5 +1,20 @@
 # ============================================================
-# start.py — v17
+# start.py — v18
+# CHANGELOG (v17 -> v18):
+#   - Custom-emoji IDs moved to one shared file, as asked:
+#     RishuMusic/utils/premium_emojis.py holds every ID + a pemoji(name,
+#     fallback) tag helper. custom_emoji() here is now a thin wrapper over
+#     it, so nothing else in this file had to change.
+#   - "WHY THIS BOT" is now a <details>/<summary> open-close block with a
+#     real <table> inside (Speed/Reliability/Updates/Support rows) —
+#     matches the BOT SNAPSHOT treatment, as asked.
+#   - "BOT SNAPSHOT" title dressed up: a link-style premium emoji + the
+#     title itself is now a tappable <a> to the bot's own t.me link (not
+#     just decorative — matches "aage title linko, mast sa").
+#   - FIXED: "Add Me In Your Group" was appearing TWICE in your screenshot
+#     — private_panel() already has its own copy, and build_reply_markup()
+#     was prepending a second one on top. Removed the duplicate; the inline
+#     keyboard is now exactly private_panel()'s buttons + Admin Panel.
 # CHANGELOG (v16 -> v17):
 #   - New error from your logs: BUTTON_DATA_INVALID on the
 #     type="callback_data" tg-button (Help/Settings pill). So the url-type
@@ -213,32 +228,27 @@ Kanha_Pic = [
     "https://files.catbox.moe/vbgrx1.jpg",
 ]
 
-# ---- Custom-emoji icon map (trimmed to what's used on this screen) ----
-CUSTOM_EMOJI_MAP = {
-    "🚀": "6140920041975061182",
-    "💎": "5944994203846054620",
-    "👤": "5258011929993026890",
-    "🔗": "5767297774584339394",
-    "❤️": "6136415987081157088",
-    "🏠": "5416041192905265756",
-    "⚙️": "5308624268255460504",
-    "✅": "6172517356162520126",
-    "📊": "4958621433509970793",
-    "🎉": "6134194260628479379",
-    "📢": "5298609030321691620",
-    "🆘": "5947494995798789024",
+# Custom-emoji IDs now live in one shared file so every plugin can reuse
+# them: RishuMusic/utils/premium_emojis.py. custom_emoji() below is kept as
+# a thin wrapper so every existing custom_emoji('🚀') call in this file
+# keeps working unchanged.
+from RishuMusic.utils.premium_emojis import pemoji
+
+_EMOJI_NAME_BY_GLYPH = {
+    "🚀": "rocket", "💎": "diamond", "👤": "user", "🔗": "link",
+    "❤️": "heart", "🏠": "house", "⚙️": "gear", "✅": "check",
+    "📊": "chart", "🎉": "party", "📢": "megaphone", "🆘": "sos",
 }
 
 
 def custom_emoji(name: str) -> str:
     """
     Real Bot API custom-emoji HTML tag: <tg-emoji emoji-id="...">🔥</tg-emoji>.
-    Falls back to the plain emoji if it's not in the map.
+    Looks the glyph up in premium_emojis.py; falls back to the plain emoji
+    if it's not registered there.
     """
-    emoji_id = CUSTOM_EMOJI_MAP.get(name)
-    if emoji_id:
-        return f'<tg-emoji emoji-id="{emoji_id}">{name}</tg-emoji>'
-    return name
+    key = _EMOJI_NAME_BY_GLYPH.get(name)
+    return pemoji(key, name) if key else name
 
 
 def safe_url(u):
@@ -357,11 +367,17 @@ def rich_start_html(
         "</blockquote>"
     )
 
+    why_us_rows = [
+        (f"{custom_emoji('🚀')} Speed", "No lag, no dropped calls"),
+        (f"{custom_emoji('🏠')} Reliability", "Queue survives restarts"),
+        (f"{custom_emoji('🎉')} Updates", "New features ship often"),
+        (f"{custom_emoji('🆘')} Support", "One tap away, always"),
+    ]
     why_us = (
-        "<h2>WHY THIS BOT</h2>"
-        "<p>Built for speed and uptime — no lag, no dropped calls, "
-        "and your queue survives restarts. New features ship often, "
-        "and support is one tap away if anything ever breaks.</p>"
+        "<details>"
+        f"<summary><h2>{pemoji('star', '⭐')} WHY THIS BOT</h2></summary>"
+        + rich_table(None, [(f"<b>{k}</b>", v) for k, v in why_us_rows])
+        + "</details>"
     )
 
     footer = (
@@ -372,14 +388,20 @@ def rich_start_html(
     # Real Bot API rich blocks: <details>/<summary> is the actual open/close
     # (collapsed-by-default, tap-to-expand) element, and it can wrap a real
     # <table> just fine — so "table" and "open/close" aren't a tradeoff.
+    # Title dressed up with a link icon + the bot's own t.me link, matching
+    # the "aage title linko, mast sa" ask — tappable, not just decorative.
+    bot_link = f"https://t.me/{app.username}" if getattr(app, "username", None) else None
+    snapshot_title = f"{pemoji('link', '🔗')} <b>BOT SNAPSHOT</b>"
+    if bot_link:
+        snapshot_title = f'{pemoji("link", "🔗")} <a href="{escape(bot_link, quote=True)}"><b>BOT SNAPSHOT</b></a>'
     snapshot_rows = [
         (f"{custom_emoji('✅')} Status", "Online"),
-        ("⏱ Uptime", escape(uptime)),
-        ("👤 Plan", "Admin" if is_admin else "Free"),
+        (f"{pemoji('clock', '⏱')} Uptime", escape(uptime)),
+        (f"{custom_emoji('👤')} Plan", "Admin" if is_admin else "Free"),
     ]
     snapshot = (
         "<details>"
-        "<summary><h2>BOT SNAPSHOT</h2></summary>"
+        f"<summary><h2>{snapshot_title}</h2></summary>"
         + rich_table(None, [(f"<b>{k}</b>", v) for k, v in snapshot_rows])
         + "</details>"
     )
@@ -412,19 +434,12 @@ def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
     Real, guaranteed-to-render button set — plain InlineKeyboardMarkup
     (the rich-body <tg-button> tags never actually rendered anything on
     your client, no error either, so dropped them — this is the only path
-    now). Reuses RishuMusic.utils.inline.private_panel() as-is (correct
-    string keys, working 'settings_back_helper' callback_data, and
-    user_id=config.OWNER_ID for the Owner button), with an "Add to Group"
-    row on top (matches the grid layout you showed) and the admin row
-    appended last.
+    now). Reuses RishuMusic.utils.inline.private_panel() as-is — it already
+    has its OWN "Add Me In Your Group" row built in (confirmed from your
+    screenshot: prepending another one here made it show up TWICE) — so
+    this just appends the admin row on top of whatever private_panel gives.
     """
-    buttons = []
-
-    add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
-    if add_url:
-        buttons.append([InlineKeyboardButton(_["S_B_3"], url=add_url)])
-
-    buttons += list(private_panel(_))
+    buttons = list(private_panel(_))
 
     if is_admin:
         buttons.append([InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")])

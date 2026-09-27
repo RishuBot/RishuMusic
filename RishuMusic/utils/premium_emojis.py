@@ -383,34 +383,59 @@ def apply_emoji_patch() -> None:
     patch will raise on the very first button created anywhere in the bot,
     so test a single /start or /help call right after deploying this.
     """
+    import inspect
+
     from pyrogram import Client
     from pyrogram.enums import ParseMode
+    from pyrogram.errors import MessageNotModified
     from pyrogram.types import InlineKeyboardButton
 
     if getattr(Client, _EMOJI_PATCH_FLAG, False):
         return
 
-    orig_send_message = Client.send_message
+    def _effective_mode(self, parse_mode):
+        return parse_mode if parse_mode is not None else (self.parse_mode or ParseMode.DEFAULT)
 
-    async def new_send_message(self, chat_id, text, parse_mode=None, *args, **kwargs):
-        effective_mode = parse_mode if parse_mode is not None else (self.parse_mode or ParseMode.DEFAULT)
-        if effective_mode != ParseMode.DISABLED and isinstance(text, str):
-            text = render_custom_emojis(text)
+    # bind_partial (same approach as rich_patch.py) instead of a fixed
+    # positional signature: a rich-message edit calls
+    # Client.edit_message_text(chat_id=..., message_id=..., rich_message=...)
+    # with NO `text` at all. The earlier version of this function required
+    # `text` as a plain positional arg and crashed (TypeError) on exactly
+    # that call, which rich_ui.py silently caught and fell back to a
+    # flattened plain-text message — that's why tables were showing as
+    # spaced-out text instead of a real table. bind_partial fixes this: it
+    # only touches `text` when the caller actually passed one.
+    orig_send_message = Client.send_message
+    _send_sig = inspect.signature(orig_send_message)
+
+    async def new_send_message(self, *args, **kwargs):
+        bound = _send_sig.bind_partial(self, *args, **kwargs)
+        text = bound.arguments.get("text")
+        parse_mode = bound.arguments.get("parse_mode")
+        if _effective_mode(self, parse_mode) != ParseMode.DISABLED and isinstance(text, str):
+            bound.arguments["text"] = render_custom_emojis(text)
             if parse_mode == ParseMode.MARKDOWN:
-                parse_mode = ParseMode.DEFAULT
-        return await orig_send_message(self, chat_id, text, parse_mode=parse_mode, *args, **kwargs)
+                bound.arguments["parse_mode"] = ParseMode.DEFAULT
+        return await orig_send_message(*bound.args, **bound.kwargs)
 
     Client.send_message = new_send_message
 
     orig_edit_message_text = Client.edit_message_text
+    _edit_sig = inspect.signature(orig_edit_message_text)
 
-    async def new_edit_message_text(self, chat_id, message_id, text, parse_mode=None, *args, **kwargs):
-        effective_mode = parse_mode if parse_mode is not None else (self.parse_mode or ParseMode.DEFAULT)
-        if effective_mode != ParseMode.DISABLED and isinstance(text, str):
-            text = render_custom_emojis(text)
+    async def new_edit_message_text(self, *args, **kwargs):
+        bound = _edit_sig.bind_partial(self, *args, **kwargs)
+        text = bound.arguments.get("text")
+        parse_mode = bound.arguments.get("parse_mode")
+        if _effective_mode(self, parse_mode) != ParseMode.DISABLED and isinstance(text, str):
+            bound.arguments["text"] = render_custom_emojis(text)
             if parse_mode == ParseMode.MARKDOWN:
-                parse_mode = ParseMode.DEFAULT
-        return await orig_edit_message_text(self, chat_id, message_id, text, parse_mode=parse_mode, *args, **kwargs)
+                bound.arguments["parse_mode"] = ParseMode.DEFAULT
+        try:
+            return await orig_edit_message_text(*bound.args, **bound.kwargs)
+        except MessageNotModified:
+            # Editing to identical content — harmless, ignore rather than crash.
+            return None
 
     Client.edit_message_text = new_edit_message_text
 

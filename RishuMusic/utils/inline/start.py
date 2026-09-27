@@ -30,26 +30,16 @@ def private_panel(_):
                 style=ButtonStyle.PRIMARY,
             )
         ],
-        [
+        [          
+                    InlineKeyboardButton(
+                        text=" σᴡηєʀ ", user_id=config.OWNER_ID,icon_custom_emoji_id=5217822164362739968,
+                style=ButtonStyle.SUCCESS,
+                    ),
             InlineKeyboardButton(
-                text="ᴜᴘᴅᴀᴛᴇ", callback_data="Khushi",icon_custom_emoji_id=6001440193058444284,
+                text="ᴜᴘᴅᴀᴛᴇ", url=config.SUPPORT_CHAT,icon_custom_emoji_id=6001440193058444284,
                 style=ButtonStyle.SUCCESS,
             ),
-            InlineKeyboardButton(
-                text="ʏᴛ-ᴀᴘɪ", callback_data="api_status",icon_custom_emoji_id=4956259055468282692,
-                style=ButtonStyle.DANGER,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text="ᴧʙσυᴛ", callback_data="riiiiishuuuuuuuuuuu",icon_custom_emoji_id=5409194306365829029,
-                style=ButtonStyle.PRIMARY,
-            ),
-            InlineKeyboardButton(
-                text="ᴘʀɪᴠᴧᴄʏ",
-                callback_data="rishuuuuuuu",icon_custom_emoji_id=5251203410396458957,
-                style=ButtonStyle.DANGER,
-            ),
+            
         ],
         [
             InlineKeyboardButton(

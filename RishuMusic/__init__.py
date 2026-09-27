@@ -14,6 +14,15 @@ heroku()
 app = shree()
 userbot = Userbot()
 
+# Rich Message + premium-emoji auto-upgrade — applied once, right after the
+# Client exists, before any plugin imports run. Order matters: rich patch
+# first, emoji patch second (see each module's own docstring for why).
+from RishuMusic.utils.rich_patch import apply_rich_patch
+from RishuMusic.utils.premium_emojis import apply_emoji_patch
+
+apply_rich_patch()
+apply_emoji_patch()
+
 from .platforms import *
 
 Apple = AppleAPI()

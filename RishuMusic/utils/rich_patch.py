@@ -74,6 +74,7 @@ import inspect
 import logging
 
 from pyrogram import Client
+from pyrogram.errors import MessageNotModified
 from pyrogram.types import Message, CallbackQuery
 from pyrogram.types.input_content.input_media import InputMedia
 
@@ -134,7 +135,13 @@ def _wrap_client_edit_message_text(orig):
                 )
             except Exception as e:
                 logger.debug(f"[rich_patch] edit_message_text rich path failed, falling through: {e}")
-        return await orig(*bound.args, **bound.kwargs)
+        try:
+            return await orig(*bound.args, **bound.kwargs)
+        except MessageNotModified:
+            # Editing to identical content — harmless, ignore it instead of
+            # crashing the handler (e.g. re-opening a panel that's already
+            # showing this exact text/keyboard).
+            return None
 
     return edit_message_text
 
@@ -151,7 +158,10 @@ def _wrap_message_edit_text(orig):
                 return await rich_edit(self, text, reply_markup=bound.arguments.get("reply_markup"))
             except Exception as e:
                 logger.debug(f"[rich_patch] edit_text rich path failed, falling through: {e}")
-        return await orig(*bound.args, **bound.kwargs)
+        try:
+            return await orig(*bound.args, **bound.kwargs)
+        except MessageNotModified:
+            return None
 
     return edit_text
 
@@ -190,7 +200,10 @@ def _wrap_cq_edit_message_text(orig):
                 return await rich_edit(self, text, reply_markup=bound.arguments.get("reply_markup"))
             except Exception as e:
                 logger.debug(f"[rich_patch] callback edit_message_text rich path failed, falling through: {e}")
-        return await orig(*bound.args, **bound.kwargs)
+        try:
+            return await orig(*bound.args, **bound.kwargs)
+        except MessageNotModified:
+            return None
 
     return edit_message_text
 

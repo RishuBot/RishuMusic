@@ -1,3 +1,5 @@
+import time
+
 from pyrogram import filters
 from pyrogram.enums import ChatType
 from pyrogram.errors import MessageNotModified
@@ -9,6 +11,7 @@ from pyrogram.types import (
 )
 
 from RishuMusic import app
+from RishuMusic.misc import _boot_
 from RishuMusic.utils.database import (
     add_nonadmin_chat,
     get_authuser,
@@ -27,6 +30,7 @@ from RishuMusic.utils.database import (
 )
 from RishuMusic.utils.decorators.admins import ActualAdminCB
 from RishuMusic.utils.decorators.language import language, languageCB
+from RishuMusic.utils.formatters import get_readable_time
 from RishuMusic.utils.inline.settings import (
     auth_users_markup,
     playmode_users_markup,
@@ -35,6 +39,16 @@ from RishuMusic.utils.inline.settings import (
 )
 from RishuMusic.utils.inline.start import private_panel
 from config import BANNED_USERS, OWNER_ID
+import config
+
+# Same rich /start body used by plugins/bot/start.py — reused here so
+# "Back" from settings shows the identical rich message (slideshow,
+# WHAT I CAN DO, WHY THIS BOT, BOT SNAPSHOT) instead of the old plain
+# start_2 text. rich_edit (from utils/rich_ui.py) handles the
+# CallbackQuery edit + graceful plain-text fallback if rich delivery
+# isn't available.
+from RishuMusic.plugins.bot.start import rich_start_html, rich_user_name, rich_bot_name
+from RishuMusic.utils.rich_ui import rich_edit
 
 
 @app.on_message(
@@ -77,11 +91,26 @@ async def settings_back_markup(client, CallbackQuery: CallbackQuery, _):
     if CallbackQuery.message.chat.type == ChatType.PRIVATE:
         await app.resolve_peer(OWNER_ID)
         OWNER = OWNER_ID
+        # private_panel(_) only — deliberately NOT adding an Admin Panel
+        # row here, even for admins, per request.
         buttons = private_panel(_)
-        return await CallbackQuery.edit_message_text(
-            _["start_2"].format(CallbackQuery.from_user.mention, app.mention),
-            reply_markup=InlineKeyboardMarkup(buttons),
+        uptime = get_readable_time(int(time.time() - _boot_))
+        is_admin = CallbackQuery.from_user.id in getattr(
+            config, "SUDO_USERS", set()
+        ) or CallbackQuery.from_user.id == OWNER_ID
+        rich_html = rich_start_html(
+            _,
+            user_mention=rich_user_name(CallbackQuery.from_user),
+            bot_mention=rich_bot_name(),
+            uptime=uptime,
+            is_admin=is_admin,
         )
+        try:
+            return await rich_edit(
+                CallbackQuery, rich_html, reply_markup=InlineKeyboardMarkup(buttons)
+            )
+        except MessageNotModified:
+            return
     else:
         buttons = setting_markup(_)
         return await CallbackQuery.edit_message_reply_markup(
@@ -389,5 +418,3 @@ async def vote_change(client, CallbackQuery, _):
         )
     except MessageNotModified:
         return
-
-

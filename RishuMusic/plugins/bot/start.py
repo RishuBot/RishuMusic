@@ -1,5 +1,10 @@
 # ============================================================
-# start.py — v19
+# start.py — v20
+# CHANGELOG (v19 -> v20):
+#   - Removed the "⚙️ Admin Panel" row from build_reply_markup() entirely,
+#     per request — /start now shows the exact same button set (just
+#     private_panel()'s own buttons) for everyone, admin or not. Matches
+#     the settings.py "Back" panel, which was already built without it.
 # CHANGELOG (v18 -> v19):
 #   - Your screenshot showed two bugs:
 #     1) Collapsed "WHY THIS BOT" / "BOT SNAPSHOT" showed ONLY the arrow —
@@ -446,15 +451,13 @@ def build_reply_markup(_, is_admin: bool = False) -> InlineKeyboardMarkup:
     your client, no error either, so dropped them — this is the only path
     now). Reuses RishuMusic.utils.inline.private_panel() as-is — it already
     has its OWN "Add Me In Your Group" row built in (confirmed from your
-    screenshot: prepending another one here made it show up TWICE) — so
-    this just appends the admin row on top of whatever private_panel gives.
+    screenshot: prepending another one here made it show up TWICE).
+
+    No Admin Panel row here anymore — removed per request, so /start and
+    the settings "Back" panel (settings.py) both show the exact same
+    button set regardless of who's viewing it.
     """
-    buttons = list(private_panel(_))
-
-    if is_admin:
-        buttons.append([InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")])
-
-    return InlineKeyboardMarkup(buttons)
+    return InlineKeyboardMarkup(list(private_panel(_)))
 
 
 async def _send_rich_start(client, message: Message, _, uptime: str, is_admin: bool, with_buttons: bool = True):

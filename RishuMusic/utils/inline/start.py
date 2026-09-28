@@ -33,7 +33,7 @@ def private_panel(_):
         [          
                     InlineKeyboardButton(
                         text=" σᴡηєʀ ", user_id=config.OWNER_ID,icon_custom_emoji_id=5217822164362739968,
-                style=ButtonStyle.SUCCESS,
+                style=ButtonStyle.DANGER,
                     ),
             InlineKeyboardButton(
                 text="ᴜᴘᴅᴀᴛᴇ", url=config.SUPPORT_CHAT,icon_custom_emoji_id=6001440193058444284,

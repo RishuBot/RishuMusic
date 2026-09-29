@@ -6,6 +6,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup,CallbackQu
 from RishuMusic import YouTube, app
 from RishuMusic.core.call import shree
 from RishuMusic.misc import SUDOERS, db
+from RishuMusic.utils.autoplay import enqueue_next as autoplay_next  # autoplay v3
 from RishuMusic.utils.database import (
     get_active_chats,
     get_lang,
@@ -167,6 +168,8 @@ async def del_back_playlist(client, CallbackQuery:CallbackQuery, _):
                 if popped:
                     rem = popped["file"]
                     autoclean.remove(rem)
+                if not check:  # autoplay v3
+                    await autoplay_next(chat_id, CallbackQuery.message.chat.id)
                 if not check:
                     await CallbackQuery.edit_message_text(
                         f"➻ sᴛʀᴇᴀᴍ sᴋɪᴩᴩᴇᴅ 🎄\n│ \n└ʙʏ : {mention} 🥀"

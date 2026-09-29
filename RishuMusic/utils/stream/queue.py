@@ -4,6 +4,7 @@ from typing import Union
 from RishuMusic.misc import db
 from RishuMusic.utils.formatters import check_duration, seconds_to_min
 from config import autoclean, time_to_seconds
+from RishuMusic.utils.autoplay import note_queued  # autoplay v3
 
 
 async def put_queue(
@@ -45,6 +46,7 @@ async def put_queue(
     else:
         db[chat_id].append(put)
     autoclean.append(file)
+    note_queued(chat_id, vidid, title)  # autoplay v3
 
 
 async def put_queue_index(

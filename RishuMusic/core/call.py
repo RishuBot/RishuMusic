@@ -21,6 +21,7 @@ except Exception:
 import config
 from RishuMusic import LOGGER, YouTube, app
 from RishuMusic.misc import db
+from RishuMusic.utils.autoplay import enqueue_next as autoplay_next, clear as autoplay_clear  # autoplay v3
 from RishuMusic.utils.database import (
     add_active_chat,
     add_active_video_chat,
@@ -55,6 +56,7 @@ counter = {}
 
 
 async def _clear_(chat_id: int):
+    autoplay_clear(chat_id)  # autoplay v3
     db[chat_id] = []
     await remove_active_video_chat(chat_id)
     await remove_active_chat(chat_id)
@@ -332,6 +334,8 @@ class Call(PyTgCalls):
                 loop = loop - 1
                 await set_loop(chat_id, loop)
             await auto_clean(popped)
+            if not check:  # autoplay v3
+                await autoplay_next(chat_id, popped["chat_id"] if popped else chat_id)
             if not check:
                 await _clear_(chat_id)
                 try:
@@ -416,7 +420,7 @@ class Call(PyTgCalls):
                     original_chat_id,
                     text=_["call_6"],
                 )
-            img = await get_thumb(videoid)
+            img = await get_thumb(videoid, check[0]["user_id"])
             button = stream_markup(_, chat_id)
             run = await app.send_photo(
                 chat_id=original_chat_id,
@@ -453,7 +457,7 @@ class Call(PyTgCalls):
                     original_chat_id,
                     text=_["call_6"],
                 )
-            img = await get_thumb(videoid)
+            img = await get_thumb(videoid, check[0]["user_id"])
             button = stream_markup(_, chat_id)
             await mystic.delete()
             run = await app.send_photo(
@@ -528,7 +532,7 @@ class Call(PyTgCalls):
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
             else:
-                img = await get_thumb(videoid)
+                img = await get_thumb(videoid, check[0]["user_id"])
                 button = stream_markup(_, chat_id)
                 run = await app.send_photo(
                     chat_id=original_chat_id,

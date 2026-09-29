@@ -1,20 +1,13 @@
-# -----------------------------------------------
-# 🔸 RishuMusic — strings/helpers.py
-# 🔹 Help category texts, upgraded to rich <table> command/description
-#    layout + premium emoji headings.
+# strings/helpers.py — rich <table> version.
+# REQUIRES utils/rich_ui.py to be deployed and apply_rich_patch() called at
+# startup (utils/rich_patch.py) — the plugin code sends these via plain
+# edit_message_text()/reply_text() calls, and the patch is what auto-
+# upgrades a <table>-containing string into a real Bot API rich message.
+# Without the patch active, these render broken/empty.
 #
-# REQUIRES rich_patch.py + rich_ui.py to be deployed and apply_rich_patch()
-# called at startup — the plugin code that sends these (helper_cb /
-# helper_private) calls plain edit_message_text()/reply_text(), and the
-# patch is what auto-upgrades a <table>-containing string into a real Bot
-# API rich message instead of Telegram silently mangling the <table> tag.
-# Without the patch active, these will render broken/empty.
-#
-# Emoji below are plain Unicode on purpose (not <tg-emoji> tags) — if
-# premium_emojis.py's apply_emoji_patch() is also active, they get
-# auto-upgraded to real custom emoji at send time; if not, they just show
-# as normal emoji. Either way nothing breaks.
-# -----------------------------------------------
+# Emoji below are plain Unicode on purpose — rich_ui.py's rich send/edit
+# path auto-upgrades them to premium <tg-emoji> tags if premium_emojis.py
+# is installed; otherwise they just stay normal emoji.
 
 from RishuMusic.utils.rich_ui import rich_table, rich_heading, rich_note
 

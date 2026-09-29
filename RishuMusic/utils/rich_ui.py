@@ -365,8 +365,27 @@ def _extract_img(html_text: str):
     return url, remaining
 
 
+def _apply_premium_emojis(html_text: str) -> str:
+    """Upgrade plain emoji in rich HTML to premium <tg-emoji> tags.
+
+    apply_emoji_patch() only wraps send_message/edit_message_text, and a
+    rich send/edit goes through send_rich_message / rich_message= (no
+    `text`), so it never sees this HTML. Doing it here means every rich
+    message gets premium emoji, whether or not the emoji patch is applied.
+    Silently a no-op if premium_emojis.py isn't installed.
+    """
+    try:
+        from .premium_emojis import render_custom_emojis
+    except Exception:
+        return html_text
+    try:
+        return render_custom_emojis(html_text)
+    except Exception:
+        return html_text
+
+
 def _input_rich(html_text: str) -> InputRichMessage:
-    return InputRichMessage(html=_normalize_html(html_text))
+    return InputRichMessage(html=_normalize_html(_apply_premium_emojis(html_text)))
 
 
 def _is_group(chat_type) -> bool:

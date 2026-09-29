@@ -5,6 +5,7 @@ import config
 from RishuMusic import YouTube, app
 from RishuMusic.core.call import shree
 from RishuMusic.misc import db
+from RishuMusic.utils.autoplay import enqueue_next as autoplay_next  # autoplay v3
 from RishuMusic.utils.database import get_loop
 from RishuMusic.utils.decorators import AdminRightsCheck
 from RishuMusic.utils.inline import close_markup, stream_markup
@@ -68,6 +69,8 @@ async def skip(cli, message: Message, _, chat_id):
             if popped:
                 rem = popped["file"]
                 autoclean.remove(rem)
+            if not check:  # autoplay v3
+                await autoplay_next(chat_id, message.chat.id)
             if not check:
                 await message.reply_text(
                     text=_["admin_6"].format(

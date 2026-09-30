@@ -1,4 +1,4 @@
-# autoplay v1 (NEW) - public API (hooks sirf yahi functions call karte hain)
+# autoplay v4 (CHANGED) - public API (hooks sirf yahi functions call karte hain)
 import asyncio
 from .state import ENABLED, READY, TASKS, AUTO, mark_seen, reset
 from .prefetch import start_prefetch
@@ -13,6 +13,7 @@ def is_on(chat_id):
 def set_on(chat_id, value, ref=None):
     ENABLED[chat_id] = value
     if value and ref:
+        mark_seen(chat_id, ref[0], ref[1])  # v4
         start_prefetch(chat_id, ref[0], ref[1])
     if not value:
         reset(chat_id)

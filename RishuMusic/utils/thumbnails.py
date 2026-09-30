@@ -6,7 +6,10 @@ import aiohttp
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from unidecode import unidecode
-from youtubesearchpython.__future__ import VideosSearch
+try:
+    from py_yt import VideosSearch  # v6: Youtube.py wali same library (old youtubesearchpython tootti hai)
+except ImportError:
+    from youtubesearchpython.__future__ import VideosSearch
 
 from RishuMusic import app
 from config import YOUTUBE_IMG_URL
@@ -41,6 +44,7 @@ def clear(text):
 
 
 async def get_thumb(videoid,user_id):
+    os.makedirs("cache", exist_ok=True)  # v6
     if os.path.isfile(f"cache/{videoid}_{user_id}.png"):
         return f"cache/{videoid}_{user_id}.png"
 
@@ -74,16 +78,22 @@ async def get_thumb(videoid,user_id):
                     f = await aiofiles.open(f"cache/thumb{videoid}.png", mode="wb")
                     await f.write(await resp.read())
                     await f.close()
+        # v6: photo nahi mili to crash nahi, bot photo -> warna skip
+        sp = None
         try:
-            async for photo in app.get_chat_photos(user_id,1):
-                sp=await app.download_media(photo.file_id, file_name=f'{user_id}.jpg')
-        except:
-            async for photo in app.get_chat_photos(app.id,1):
-                sp=await app.download_media(photo.file_id, file_name=f'{app.id}.jpg')
+            async for photo in app.get_chat_photos(user_id, 1):
+                sp = await app.download_media(photo.file_id, file_name=f"{user_id}.jpg")
+        except Exception:
+            pass
+        if not sp:
+            try:
+                async for photo in app.get_chat_photos(app.id, 1):
+                    sp = await app.download_media(photo.file_id, file_name=f"{app.id}.jpg")
+            except Exception:
+                pass
+        xp = Image.open(sp).convert("RGB") if sp else None
 
-        xp=Image.open(sp)
-
-        youtube = Image.open(f"cache/thumb{videoid}.png")
+        youtube = Image.open(f"cache/thumb{videoid}.png").convert("RGB")  # v6: RGB
         image1 = changeImageSize(1280, 720, youtube)
         image2 = image1.convert("RGBA")
         background = image2.filter(filter=ImageFilter.BoxBlur(10))
@@ -91,8 +101,9 @@ async def get_thumb(videoid,user_id):
         background = enhancer.enhance(0.5)
         y=changeImageSize(200,200,circle(youtube)) 
         background.paste(y,(45,225),mask=y)
-        a=changeImageSize(200,200,circle(xp)) 
-        background.paste(a,(1045,225),mask=a)
+        if xp is not None:  # v6
+            a=changeImageSize(200,200,circle(xp)) 
+            background.paste(a,(1045,225),mask=a)
         draw = ImageDraw.Draw(background)
         arial = ImageFont.truetype("RishuMusic/assets/font2.ttf", 30)
         font = ImageFont.truetype("RishuMusic/assets/font.ttf", 30)
@@ -140,4 +151,6 @@ async def get_thumb(videoid,user_id):
         background.save(f"cache/{videoid}_{user_id}.png")
         return f"cache/{videoid}_{user_id}.png"
     except Exception:
+        import traceback  # v6: asli error console me dikhega
+        traceback.print_exc()
         return YOUTUBE_IMG_URL

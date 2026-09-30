@@ -1,12 +1,12 @@
-# autoplay v1 (NEW) - per-chat state
+# autoplay v4 (CHANGED) - per-chat state
 import os
-from .related import norm
+from .related import tokens, similar
 from collections import defaultdict, deque
 
 TARGET = 5                                    # kitne related songs ready rakhne hain
 ENABLED = {}                                  # chat_id -> bool
 HISTORY = defaultdict(lambda: deque(maxlen=300))  # chat_id -> played/queued vidids
-TITLES = defaultdict(lambda: deque(maxlen=300))  # v2: normalized titles
+TITLES = defaultdict(lambda: deque(maxlen=300))  # v4: title token-sets
 READY = defaultdict(list)                     # chat_id -> [{vidid,title,duration,file}]
 TASKS = {}                                    # chat_id -> asyncio.Task
 REF = {}                                      # chat_id -> vidid jiske related fetch hue
@@ -16,14 +16,17 @@ AUTO = {}                                     # chat_id -> vidid jo autoplay ne 
 def seen(chat_id, vidid, title=None):
     if vidid in HISTORY[chat_id]:
         return True
-    return title is not None and norm(title) in TITLES[chat_id]   # v2
+    if title:                                                       # v4: fuzzy title match
+        tk = tokens(title)
+        return any(similar(tk, x) for x in TITLES[chat_id])
+    return False
 
 
 def mark_seen(chat_id, vidid, title=None):
     if vidid and vidid not in HISTORY[chat_id]:
         HISTORY[chat_id].append(vidid)
-    if title and norm(title) not in TITLES[chat_id]:
-        TITLES[chat_id].append(norm(title))                        # v2
+    if title:
+        TITLES[chat_id].append(tokens(title))                       # v4
 
 
 def cancel_task(chat_id):

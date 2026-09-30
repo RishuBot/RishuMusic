@@ -197,4 +197,9 @@ async def helper_cb(client, CallbackQuery: CallbackQuery, _):
             )
         except Exception:
             return
-    await _show(CallbackQuery, text, keyboard)
+    # Banner image on every category page too (not just the main panel) —
+    # it's embedded inside the rich text body (rich_img), not a native photo
+    # attachment, so it can sit right above a real <table> in the same
+    # message instead of disappearing when you navigate into a category.
+    banner = rich_img(random.choice(config.START_IMG_URL))
+    await _show(CallbackQuery, banner + text, keyboard)

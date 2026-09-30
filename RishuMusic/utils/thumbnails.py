@@ -1,156 +1,151 @@
+# thumbnails.py v8 (CHANGED): naya frosted-panel design (gen_thumb) + purana get_thumb(videoid, user_id) wrapper
 import os
 import re
+import traceback
 
 import aiofiles
 import aiohttp
-import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
-from unidecode import unidecode
+
 try:
-    from py_yt import VideosSearch  # v6: Youtube.py wali same library (old youtubesearchpython tootti hai)
+    from py_yt import VideosSearch  # v8: Youtube.py wali library (youtubesearchpython tootti hai)
 except ImportError:
     from youtubesearchpython.__future__ import VideosSearch
 
-from RishuMusic import app
 from config import YOUTUBE_IMG_URL
 
+CACHE_DIR = "cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-def changeImageSize(maxWidth, maxHeight, image):
-    widthRatio = maxWidth / image.size[0]
-    heightRatio = maxHeight / image.size[1]
-    newWidth = int(widthRatio * image.size[0])
-    newHeight = int(heightRatio * image.size[1])
-    newImage = image.resize((newWidth, newHeight))
-    return newImage
+ASSETS = "RishuMusic/assets" 
 
-def circle(img): 
-     h,w=img.size 
-     a = Image.new('L', [h,w], 0) 
-     b = ImageDraw.Draw(a) 
-     b.pieslice([(0, 0), (h,w)], 0, 360, fill = 255,outline = "white") 
-     c = np.array(img) 
-     d = np.array(a) 
-     e = np.dstack((c, d)) 
-     return Image.fromarray(e)
+PANEL_W, PANEL_H = 763, 545
+PANEL_X = (1280 - PANEL_W) // 2
+PANEL_Y = 88
+TRANSPARENCY = 170
+INNER_OFFSET = 36
+
+THUMB_W, THUMB_H = 542, 273
+THUMB_X = PANEL_X + (PANEL_W - THUMB_W) // 2
+THUMB_Y = PANEL_Y + INNER_OFFSET
+
+TITLE_X = 377
+META_X = 377
+TITLE_Y = THUMB_Y + THUMB_H + 10
+META_Y = TITLE_Y + 45
+
+BAR_X, BAR_Y = 388, META_Y + 45
+BAR_RED_LEN = 280
+BAR_TOTAL_LEN = 480
+
+ICONS_W, ICONS_H = 415, 45
+ICONS_X = PANEL_X + (PANEL_W - ICONS_W) // 2
+ICONS_Y = BAR_Y + 48
+
+MAX_TITLE_WIDTH = 580
 
 
-def clear(text):
-    list = text.split(" ")
-    title = ""
-    for i in list:
-        if len(title) + len(i) < 60:
-            title += " " + i
-    return title.strip()
+def trim_to_width(text, font, max_width):
+    ellipsis = "…"
+    if (font.getbbox(text)[2] - font.getbbox(text)[0]) <= max_width:
+        return text
+    for i in range(len(text) - 1, 0, -1):
+        cropped = text[:i] + ellipsis
+        if (font.getbbox(cropped)[2] - font.getbbox(cropped)[0]) <= max_width:
+            return cropped
+    return ellipsis
 
 
-async def get_thumb(videoid,user_id):
-    os.makedirs("cache", exist_ok=True)  # v6
-    if os.path.isfile(f"cache/{videoid}_{user_id}.png"):
-        return f"cache/{videoid}_{user_id}.png"
+async def gen_thumb(videoid: str) -> str:
+    cache_path = os.path.join(CACHE_DIR, f"{videoid}_v4.png")
 
-    url = f"https://www.youtube.com/watch?v={videoid}"
+    # v8: cache use hota hai (autoplay pehle se thumbnail bana leta hai)
+    if os.path.exists(cache_path):
+        return cache_path
+
     try:
-        results = VideosSearch(url, limit=1)
-        for result in (await results.next())["result"]:
-            try:
-                title = result["title"]
-                title = re.sub("\W+", " ", title)
-                title = title.title()
-            except:
-                title = "Unsupported Title"
-            try:
-                duration = result["duration"]
-            except:
-                duration = "Unknown Mins"
-            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-            try:
-                views = result["viewCount"]["short"]
-            except:
-                views = "Unknown Views"
-            try:
-                channel = result["channel"]["name"]
-            except:
-                channel = "Unknown Channel"
+        results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
+        try:
+            results_data = await results.next()
+            result_items = results_data.get("result", [])
+            if not result_items:
+                raise ValueError("No results found.")
+            data = result_items[0]
+            title = re.sub(r"\W+", " ", data.get("title", "Unsupported Title")).title()
+            thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
+            duration = data.get("duration")
+            views = data.get("viewCount", {}).get("short", "Unknown Views")
+        except Exception:
+            traceback.print_exc()
+            title, duration, views = "Unsupported Title", None, "Unknown Views"
+            thumbnail = f"https://i.ytimg.com/vi/{videoid}/hqdefault.jpg"  # v8: fallback real thumbnail
 
+        is_live = not duration or str(duration).strip().lower() in {"", "live", "live now"}
+        duration_text = "Live" if is_live else duration or "Unknown Mins"
+
+        thumb_path = os.path.join(CACHE_DIR, f"thumb{videoid}.png")
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail) as resp:
-                if resp.status == 200:
-                    f = await aiofiles.open(f"cache/thumb{videoid}.png", mode="wb")
-                    await f.write(await resp.read())
-                    await f.close()
-        # v6: photo nahi mili to crash nahi, bot photo -> warna skip
-        sp = None
-        try:
-            async for photo in app.get_chat_photos(user_id, 1):
-                sp = await app.download_media(photo.file_id, file_name=f"{user_id}.jpg")
-        except Exception:
-            pass
-        if not sp:
-            try:
-                async for photo in app.get_chat_photos(app.id, 1):
-                    sp = await app.download_media(photo.file_id, file_name=f"{app.id}.jpg")
-            except Exception:
-                pass
-        xp = Image.open(sp).convert("RGB") if sp else None
+                if resp.status != 200:  # v8: bad status par ytimg fallback
+                    async with session.get(f"https://i.ytimg.com/vi/{videoid}/hqdefault.jpg") as r2:
+                        content = await r2.read()
+                else:
+                    content = await resp.read()
+        async with aiofiles.open(thumb_path, "wb") as f:
+            await f.write(content)
 
-        youtube = Image.open(f"cache/thumb{videoid}.png").convert("RGB")  # v6: RGB
-        image1 = changeImageSize(1280, 720, youtube)
-        image2 = image1.convert("RGBA")
-        background = image2.filter(filter=ImageFilter.BoxBlur(10))
-        enhancer = ImageEnhance.Brightness(background)
-        background = enhancer.enhance(0.5)
-        y=changeImageSize(200,200,circle(youtube)) 
-        background.paste(y,(45,225),mask=y)
-        if xp is not None:  # v6
-            a=changeImageSize(200,200,circle(xp)) 
-            background.paste(a,(1045,225),mask=a)
-        draw = ImageDraw.Draw(background)
-        arial = ImageFont.truetype("RishuMusic/assets/font2.ttf", 30)
-        font = ImageFont.truetype("RishuMusic/assets/font.ttf", 30)
-        draw.text((1110, 8), unidecode(app.name), fill="white", font=arial)
-        draw.text(
-                (55, 560),
-                f"{channel} | {views[:23]}",
-                (255, 255, 255),
-                font=arial,
-            )
-        draw.text(
-                (57, 600),
-                clear(title),
-                (255, 255, 255),
-                font=font,
-            )
-        draw.line(
-                [(55, 660), (1220, 660)],
-                fill="white",
-                width=5,
-                joint="curve",
-            )
-        draw.ellipse(
-                [(918, 648), (942, 672)],
-                outline="white",
-                fill="white",
-                width=15,
-            )
-        draw.text(
-                (36, 685),
-                "00:00",
-                (255, 255, 255),
-                font=arial,
-            )
-        draw.text(
-                (1185, 685),
-                f"{duration[:23]}",
-                (255, 255, 255),
-                font=arial,
-            )
+        base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
+        bg = ImageEnhance.Brightness(base.filter(ImageFilter.BoxBlur(10))).enhance(0.6)
+
+        panel_area = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
+        overlay = Image.new("RGBA", (PANEL_W, PANEL_H), (255, 255, 255, TRANSPARENCY))
+        frosted = Image.alpha_composite(panel_area, overlay)
+        mask = Image.new("L", (PANEL_W, PANEL_H), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, PANEL_W, PANEL_H), 50, fill=255)
+        bg.paste(frosted, (PANEL_X, PANEL_Y), mask)
+
+        draw = ImageDraw.Draw(bg)
         try:
-            os.remove(f"cache/thumb{videoid}.png")
-        except:
+            title_font = ImageFont.truetype(f"{ASSETS}/font2.ttf", 32)
+            regular_font = ImageFont.truetype(f"{ASSETS}/font.ttf", 18)
+        except OSError:
+            title_font = regular_font = ImageFont.load_default()
+
+        thumb = base.resize((THUMB_W, THUMB_H))
+        tmask = Image.new("L", thumb.size, 0)
+        ImageDraw.Draw(tmask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), 20, fill=255)
+        bg.paste(thumb, (THUMB_X, THUMB_Y), tmask)
+
+        draw.text((TITLE_X, TITLE_Y), trim_to_width(title, title_font, MAX_TITLE_WIDTH), fill="black", font=title_font)
+        draw.text((META_X, META_Y), f"YouTube | {views}", fill="black", font=regular_font)
+
+        draw.line([(BAR_X, BAR_Y), (BAR_X + BAR_RED_LEN, BAR_Y)], fill="red", width=6)
+        draw.line([(BAR_X + BAR_RED_LEN, BAR_Y), (BAR_X + BAR_TOTAL_LEN, BAR_Y)], fill="gray", width=5)
+        draw.ellipse([(BAR_X + BAR_RED_LEN - 7, BAR_Y - 7), (BAR_X + BAR_RED_LEN + 7, BAR_Y + 7)], fill="red")
+
+        draw.text((BAR_X, BAR_Y + 15), "00:00", fill="black", font=regular_font)
+        end_text = "Live" if is_live else duration_text
+        draw.text((BAR_X + BAR_TOTAL_LEN - (90 if is_live else 60), BAR_Y + 15), end_text, fill="red" if is_live else "black", font=regular_font)
+
+        icons_path = f"{ASSETS}/play_icons.png"
+        if os.path.isfile(icons_path):
+            ic = Image.open(icons_path).resize((ICONS_W, ICONS_H)).convert("RGBA")
+            r, g, b, a = ic.split()
+            black_ic = Image.merge("RGBA", (r.point(lambda *_: 0), g.point(lambda *_: 0), b.point(lambda *_: 0), a))
+            bg.paste(black_ic, (ICONS_X, ICONS_Y), black_ic)
+
+        try:
+            os.remove(thumb_path)
+        except OSError:
             pass
-        background.save(f"cache/{videoid}_{user_id}.png")
-        return f"cache/{videoid}_{user_id}.png"
+
+        bg.save(cache_path)
+        return cache_path
     except Exception:
-        import traceback  # v6: asli error console me dikhega
-        traceback.print_exc()
+        traceback.print_exc()  # v8: asli error console me
         return YOUTUBE_IMG_URL
+
+
+async def get_thumb(videoid, user_id=None):
+    """v8: purane saare call sites (call.py, stream.py, skip.py, callback.py) ke liye wrapper. user_id ab use nahi hota."""
+    return await gen_thumb(videoid)

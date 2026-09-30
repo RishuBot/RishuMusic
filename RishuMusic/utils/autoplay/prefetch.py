@@ -1,7 +1,7 @@
-# autoplay v3 - background me 5 related songs pre-download
+# autoplay v4 (CHANGED) - background me 5 related songs pre-download
 import asyncio
 from .state import (READY, TASKS, REF, AUTO, TARGET, seen, reset, cancel_task)
-from .related import fetch_related
+from .related import fetch_related, tokens, similar
 
 
 async def _worker(chat_id, vidid, title):
@@ -12,7 +12,10 @@ async def _worker(chat_id, vidid, title):
     for c in cands:
         if len(READY[chat_id]) >= TARGET:
             break
-        if seen(chat_id, c["vidid"], c["title"]) or any(r["vidid"] == c["vidid"] for r in READY[chat_id]):
+        ctk = tokens(c["title"])
+        if seen(chat_id, c["vidid"], c["title"]) or any(
+            r["vidid"] == c["vidid"] or similar(ctk, tokens(r["title"])) for r in READY[chat_id]
+        ):  # v4
             continue
         try:
             file, _ = await YouTube.download(c["vidid"], None, videoid=True, video=False)  # v3: fixed

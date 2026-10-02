@@ -1,5 +1,8 @@
 # ============================================================
-# stream.py — v9
+# stream.py — v10
+# CHANGELOG (v9 -> v10):
+#   - rich_now_playing = _rich_photo_card (public alias) so skip / auto-next
+#     code (admins skip, callback, core/call.py) can send the same rich card.
 # CHANGELOG (v8 -> v9):
 #   - v8 (clickable mention attempt) REMOVED, back to bold plain name.
 #   - Upload fix: litterbox gave HTTP 500. Now tries litterbox -> catbox
@@ -244,6 +247,9 @@ async def _rich_photo_card(
         reply_markup=markup,
     )
 
+
+# v10 NEW: public name, skip/auto-next files isse import karke use karein
+rich_now_playing = _rich_photo_card
 
 async def stream(
     _,

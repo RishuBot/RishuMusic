@@ -1,5 +1,14 @@
 # ============================================================
-# stream.py — v7
+# stream.py — v9
+# CHANGELOG (v8 -> v9):
+#   - v8 (clickable mention attempt) REMOVED, back to bold plain name.
+#   - Upload fix: litterbox gave HTTP 500. Now tries litterbox -> catbox
+#     (permanent) -> uguu, with User-Agent + proper content-type, 8s timeout
+#     per host. One combined error to Owner DM only if ALL hosts fail.
+# CHANGELOG (v7 -> v8) [reverted in v9]:
+#   - Clickable mention: pehle attempt "mention-link" (<a href="tg://user?id=..">)
+#     bold naam ke saath; Telegram reject kare to purane attempts (plain bold
+#     naam) chalte hain. Reject error Owner DM me aayega.
 # CHANGELOG (v6 -> v7):
 #   - Requested-by mention fix: _plain_name() strips the raw <a href=tg://..>
 #     tag, shows bold plain name (no more literal HTML in the table).
@@ -85,40 +94,69 @@ def _rich_details(title: str, table: str, emoji: str = "") -> str:
     return f"<details><summary>{lead}<b>{title}</b></summary>{table}</details>"
 
 
-# v7 NEW: temp public URL (litterbox = catbox ka temporary host).
+# v9: multi-host temp upload. Order: litterbox (temp, TEMP_TIME) -> catbox
+# (permanent, reliable) -> uguu (temp ~3h). Pehla jo chal jaye wahi use hota hai.
 # TEMP_TIME: "1h" / "12h" / "24h" / "72h"
-TEMP_TIME = "1h"
+TEMP_TIME = "72h"
 _upload_cache = {}
+_UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) RishuMusic/1.0"}
+
+
+async def _upload_to(sess, host, blob, fname, ctype):
+    """Returns (url_or_None, note)."""
+    import aiohttp
+
+    form = aiohttp.FormData()
+    if host == "litterbox":
+        form.add_field("reqtype", "fileupload")
+        form.add_field("time", TEMP_TIME)
+        form.add_field("fileToUpload", blob, filename=fname, content_type=ctype)
+        target = "https://litterbox.catbox.moe/resources/internals/api.php"
+    elif host == "catbox":
+        form.add_field("reqtype", "fileupload")
+        form.add_field("fileToUpload", blob, filename=fname, content_type=ctype)
+        target = "https://catbox.moe/user/api.php"
+    else:  # uguu
+        form.add_field("files[]", blob, filename=fname, content_type=ctype)
+        target = "https://uguu.se/upload?output=text"
+    async with sess.post(target, data=form) as r:
+        txt = (await r.text()).strip()
+        if r.status == 200 and txt.startswith("https://"):
+            return txt.split()[0], "ok"
+        return None, f"HTTP {r.status}: {txt[:80]!r}"
 
 
 async def _temp_public_url(path):
-    """Local thumb file -> temp public https URL. None if it fails."""
+    """Local thumb file -> public https URL. None if every host fails."""
     path = str(path or "")
     if not path or path.startswith(("http://", "https://")) or not os.path.isfile(path):
         return None
     if path in _upload_cache:
         return _upload_cache[path]
+    notes = []
     try:
         import aiohttp
 
-        data = aiohttp.FormData()
-        data.add_field("reqtype", "fileupload")
-        data.add_field("time", TEMP_TIME)
         with open(path, "rb") as f:
-            data.add_field("fileToUpload", f.read(), filename=os.path.basename(path))
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as sess:
-            async with sess.post(
-                "https://litterbox.catbox.moe/resources/internals/api.php", data=data
-            ) as r:
-                url = (await r.text()).strip()
-        if url.startswith("https://"):
-            if len(_upload_cache) > 200:
-                _upload_cache.clear()
-            _upload_cache[path] = url
-            return url
-        await _report_rich_error("stream._temp_public_url", "upload", f"bad response: {url[:200]}")
+            blob = f.read()
+        fname = os.path.basename(path)
+        ctype = "image/png" if fname.lower().endswith(".png") else "image/jpeg"
+        timeout = aiohttp.ClientTimeout(total=8)
+        async with aiohttp.ClientSession(timeout=timeout, headers=_UA) as sess:
+            for host in ("litterbox", "catbox", "uguu"):
+                try:
+                    url, note = await _upload_to(sess, host, blob, fname, ctype)
+                except Exception as ex:
+                    url, note = None, f"{type(ex).__name__}: {ex}"
+                if url:
+                    if len(_upload_cache) > 200:
+                        _upload_cache.clear()
+                    _upload_cache[path] = url
+                    return url
+                notes.append(f"{host}: {note}")
     except Exception as ex:
-        await _report_rich_error("stream._temp_public_url", "upload", ex)
+        notes.append(f"setup: {type(ex).__name__}: {ex}")
+    await _report_rich_error("stream._temp_public_url", "all-hosts-failed", " | ".join(notes))
     return None
 
 

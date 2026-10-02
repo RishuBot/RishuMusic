@@ -1,5 +1,11 @@
 # ============================================================
-# stream.py — v5
+# stream.py — v6
+# CHANGELOG (v5 -> v6):
+#   - FIX RICH_MESSAGE_PHOTO_URL_INVALID: get_thumb() returns a LOCAL file,
+#     rich <img> needs a public URL. New _rich_src() + rich_img_url param;
+#     youtube/live/playlist cards pass the YouTube thumbnail URL.
+#     (Rich card me custom generated thumb nahi, YouTube thumb dikhega;
+#     fallback photo card me purana generated thumb hi rehta hai.)
 # CHANGELOG (v4 -> v5):
 #   - Error ab OWNER_ID ke DM me aata hai (fail ho to LOGGER_ID fallback).
 # CHANGELOG (v3 -> v4):
@@ -71,9 +77,19 @@ def _rich_details(title: str, table: str, emoji: str = "") -> str:
     return f"<details><summary>{lead}<b>{title}</b></summary>{table}</details>"
 
 
+# v6 NEW: rich <img> ko public http(s) URL chahiye (local cache path =
+# RICH_MESSAGE_PHOTO_URL_INVALID). img URL ho to wahi, warna rich_img_url.
+def _rich_src(img, rich_img_url=None):
+    for cand in (img, rich_img_url):
+        c = str(cand or "")
+        if c.startswith(("http://", "https://")):
+            return c.split("?")[0]
+    return None
+
+
 async def _rich_photo_card(
     chat_id, img, markup, plain_cap, *, title=None, duration_min=None,
-    user_name=None, link=None, extra_rows=None,
+    user_name=None, link=None, extra_rows=None, rich_img_url=None,
 ):
     """Send the 'Now Streaming' card as a real Bot API 10.2+ Rich Message:
     thumbnail + a genuine HTML ``<table>`` inside a <details> dropdown (v2).
@@ -89,7 +105,10 @@ async def _rich_photo_card(
     """
     if not RICH_AVAILABLE:
         await _report_rich_error("stream._rich_photo_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
-    elif img and title is not None:
+    elif title is not None and not _rich_src(img, rich_img_url):
+        await _report_rich_error("stream._rich_photo_card", "no-url", f"img is local path, no rich_img_url given: {img}")
+    elif title is not None:
+        rich_src = _rich_src(img, rich_img_url)
         rows = []
         title_cell = rich_esc(title)
         if link:
@@ -102,7 +121,7 @@ async def _rich_photo_card(
         if extra_rows:
             rows.extend(extra_rows)
         table = rich_kv_table(rows)
-        head = rich_img(img) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
+        head = rich_img(rich_src) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
         attempts = (
             ("details+emoji-render",
              render_custom_emojis(head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
@@ -223,6 +242,7 @@ async def stream(
                     duration_min=duration_min,
                     user_name=user_name,
                     link=link,
+                    rich_img_url=thumbnail,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"
@@ -309,6 +329,7 @@ async def stream(
                 duration_min=duration_min,
                 user_name=user_name,
                 link=link,
+                rich_img_url=thumbnail,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
@@ -485,6 +506,7 @@ async def stream(
                 duration_min=duration_min,
                 user_name=user_name,
                 link=live_link,
+                rich_img_url=thumbnail,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"

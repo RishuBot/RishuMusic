@@ -1,3 +1,15 @@
+# ============================================================
+# stream.py — v2
+# CHANGELOG (v1 -> v2):
+#   - Added _rich_details() helper (<details><summary>...</summary>
+#     TABLE</details> dropdown, same as BOT SNAPSHOT in start.py).
+#   - _rich_photo_card(): "Now Streaming" table now goes inside the
+#     dropdown ("ᴛʀᴀᴄᴋ ɪɴғᴏ"). Heading "❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●" and the
+#     thumbnail stay outside it.
+#   - Fallback (send_photo with plain_cap) unchanged.
+#   - en.yml: NO change needed.
+# ============================================================
+
 import os
 from random import randint
 from typing import Union
@@ -28,12 +40,18 @@ from RishuMusic.utils.stream.queue import put_queue, put_queue_index
 from RishuMusic.utils.thumbnails import get_thumb
 
 
+# v2 NEW
+def _rich_details(title: str, table: str, emoji: str = "🎵") -> str:
+    # <summary> me sirf plain text + <b> + emoji (<h2>/<a> andar nahi).
+    return f"<details><summary>{emoji} <b>{title}</b></summary>{table}</details>"
+
+
 async def _rich_photo_card(
     chat_id, img, markup, plain_cap, *, title=None, duration_min=None,
     user_name=None, link=None, extra_rows=None,
 ):
     """Send the 'Now Streaming' card as a real Bot API 10.2+ Rich Message:
-    thumbnail + a genuine HTML ``<table>`` (not just bold-labelled text).
+    thumbnail + a genuine HTML ``<table>`` inside a <details> dropdown (v2).
 
     ``plain_cap`` (the existing stream_1/stream_2-formatted string) is kept
     as the fallback caption if rich delivery isn't available on this
@@ -58,10 +76,17 @@ async def _rich_photo_card(
             if extra_rows:
                 rows.extend(extra_rows)
             table = rich_kv_table(rows)
+            # v1:
+            # body = (
+            #     rich_img(img)
+            #     + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
+            #     + table
+            # )
+            # v2:
             body = (
                 rich_img(img)
                 + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
-                + table
+                + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)
             )
             body = render_custom_emojis(body)
             return await app.send_rich_message(

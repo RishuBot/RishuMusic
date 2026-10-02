@@ -1,3 +1,15 @@
+# ============================================================
+# callback.py — v2   (v1 = your original file)
+# CHANGELOG (v1 -> v2):
+#   - Skip / Replay button ke baad "Now Streaming" card ab rich card
+#     (thumbnail + dropdown table) hai, /play jaisa. Pehle
+#     CallbackQuery.message.reply_photo se plain caption aa raha tha.
+#   - Naya _card() helper -> stream.py ka rich_now_playing() call karta hai
+#     (rich fail ho to wo khud plain photo caption pe fallback karta hai).
+#   - Skip/Replay ke saare reply_photo(stream_1 / stream_2) calls _card()
+#     se replace (marked "# v2" neeche). Baaki logic same.
+# ============================================================
+
 import asyncio
 
 from pyrogram import filters
@@ -21,6 +33,7 @@ from RishuMusic.utils.database import (
 from RishuMusic.utils.decorators.language import languageCB
 from RishuMusic.utils.formatters import seconds_to_min
 from RishuMusic.utils.inline import close_markup, stream_markup, stream_markup_timer
+from RishuMusic.utils.stream.stream import rich_now_playing  # v2 NEW
 from RishuMusic.utils.thumbnails import get_thumb
 from config import (
     BANNED_USERS,
@@ -38,6 +51,28 @@ from strings import get_string
 
 checker = {}
 upvoters = {}
+
+
+# v2 NEW
+def _yt_thumb(videoid):
+    return f"https://i.ytimg.com/vi/{videoid}/hqdefault.jpg"
+
+
+# v2 NEW
+async def _card(chat_id, img, button, _, title, dur, user, link,
+                plain_cap=None, rich_img_url=None):
+    cap = plain_cap or _["stream_1"].format(link, title[:23], dur, user)
+    return await rich_now_playing(
+        chat_id,
+        img,
+        InlineKeyboardMarkup(button),
+        cap,
+        title=title[:23],
+        duration_min=dur,
+        user_name=user,
+        link=link,
+        rich_img_url=rich_img_url,
+    )
 
 
 @app.on_callback_query(filters.regex("ADMIN") & ~BANNED_USERS)
@@ -233,15 +268,11 @@ async def del_back_playlist(client, CallbackQuery:CallbackQuery, _):
                 return await CallbackQuery.message.reply_text(_["call_6"])
             button = stream_markup(_, chat_id)
             img = await get_thumb(videoid,user_id)
-            run = await CallbackQuery.message.reply_photo(
-                photo=img,
-                caption=_["stream_1"].format(
-                    f"https://t.me/{app.username}?start=info_{videoid}",
-                    title[:23],
-                    duration,
-                    user,
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+            # v2: reply_photo -> _card (rich)
+            run = await _card(
+                CallbackQuery.message.chat.id, img, button, _, title, duration, user,
+                f"https://t.me/{app.username}?start=info_{videoid}",
+                rich_img_url=_yt_thumb(videoid),
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -269,15 +300,11 @@ async def del_back_playlist(client, CallbackQuery:CallbackQuery, _):
                 return await mystic.edit_text(_["call_6"])
             button = stream_markup(_, chat_id)
             img = await get_thumb(videoid,user_id)
-            run = await CallbackQuery.message.reply_photo(
-                photo=img,
-                caption=_["stream_1"].format(
-                    f"https://t.me/{app.username}?start=info_{videoid}",
-                    title[:23],
-                    duration,
-                    user,
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+            # v2: reply_photo -> _card (rich)
+            run = await _card(
+                CallbackQuery.message.chat.id, img, button, _, title, duration, user,
+                f"https://t.me/{app.username}?start=info_{videoid}",
+                rich_img_url=_yt_thumb(videoid),
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
@@ -289,10 +316,11 @@ async def del_back_playlist(client, CallbackQuery:CallbackQuery, _):
             except:
                 return await CallbackQuery.message.reply_text(_["call_6"])
             button = stream_markup(_, chat_id)
-            run = await CallbackQuery.message.reply_photo(
-                photo=STREAM_IMG_URL,
-                caption=_["stream_2"].format(user),
-                reply_markup=InlineKeyboardMarkup(button),
+            # v2: reply_photo -> _card (rich)
+            run = await _card(
+                CallbackQuery.message.chat.id, STREAM_IMG_URL, button, _,
+                "ɪɴᴅᴇx ᴏʀ ᴍ3ᴜ8 ʟɪɴᴋ", None, user, None,
+                plain_cap=_["stream_2"].format(user),
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -313,42 +341,36 @@ async def del_back_playlist(client, CallbackQuery:CallbackQuery, _):
                 return await CallbackQuery.message.reply_text(_["call_6"])
             if videoid == "telegram":
                 button = stream_markup(_, chat_id)
-                run = await CallbackQuery.message.reply_photo(
-                    photo=TELEGRAM_AUDIO_URL
+                # v2: reply_photo -> _card (rich)
+                run = await _card(
+                    CallbackQuery.message.chat.id,
+                    TELEGRAM_AUDIO_URL
                     if str(streamtype) == "audio"
                     else TELEGRAM_VIDEO_URL,
-                    caption=_["stream_1"].format(
-                        SUPPORT_CHAT, title[:23], duration, user
-                    ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                    button, _, title, duration, user, SUPPORT_CHAT,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
             elif videoid == "soundcloud":
                 button = stream_markup(_, chat_id)
-                run = await CallbackQuery.message.reply_photo(
-                    photo=SOUNCLOUD_IMG_URL
+                # v2: reply_photo -> _card (rich)
+                run = await _card(
+                    CallbackQuery.message.chat.id,
+                    SOUNCLOUD_IMG_URL
                     if str(streamtype) == "audio"
                     else TELEGRAM_VIDEO_URL,
-                    caption=_["stream_1"].format(
-                        SUPPORT_CHAT, title[:23], duration, user
-                    ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                    button, _, title, duration, user, SUPPORT_CHAT,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
             else:
                 button = stream_markup(_, chat_id)
                 img = await get_thumb(videoid,user_id)
-                run = await CallbackQuery.message.reply_photo(
-                    photo=img,
-                    caption=_["stream_1"].format(
-                        f"https://t.me/{app.username}?start=info_{videoid}",
-                        title[:23],
-                        duration,
-                        user,
-                    ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                # v2: reply_photo -> _card (rich)
+                run = await _card(
+                    CallbackQuery.message.chat.id, img, button, _, title, duration, user,
+                    f"https://t.me/{app.username}?start=info_{videoid}",
+                    rich_img_url=_yt_thumb(videoid),
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"

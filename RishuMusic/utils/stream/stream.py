@@ -1,5 +1,11 @@
 # ============================================================
-# stream.py — v10
+# stream.py — v11
+# CHANGELOG (v10 -> v11):
+#   - FIX RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND: image URL candidates ab chain
+#     me try hote hain: direct/temp-upload URL -> normalized YouTube
+#     hqdefault.jpg. Photo error aaye to layout variants skip karke seedha
+#     next URL. Owner DM error me ab "src=<url>" bhi dikhta hai.
+#   - _norm_yt(): ytimg URL (hq720.jpg?sqp=..) -> stable hqdefault.jpg.
 # CHANGELOG (v9 -> v10):
 #   - rich_now_playing = _rich_photo_card (public alias) so skip / auto-next
 #     code (admins skip, callback, core/call.py) can send the same rich card.
@@ -180,6 +186,15 @@ def _rich_src(img, rich_img_url=None):
     return None
 
 
+# v11 NEW: YouTube thumb URL ko stable hqdefault.jpg me normalize karo
+# (hq720.jpg?sqp=... query hata dene par aksar 404 -> NO_MEDIA_FOUND).
+def _norm_yt(url):
+    m = re.search(r"ytimg\.com/vi(?:_webp)?/([\w-]{11})/", str(url or ""))
+    if m:
+        return f"https://i.ytimg.com/vi/{m.group(1)}/hqdefault.jpg"
+    return _rich_src(None, url)
+
+
 async def _rich_photo_card(
     chat_id, img, markup, plain_cap, *, title=None, duration_min=None,
     user_name=None, link=None, extra_rows=None, rich_img_url=None,
@@ -196,17 +211,22 @@ async def _rich_photo_card(
     table, or leave them unset to fall back to plain_cap even in the rich
     path (used for cards that have no song info, e.g. the index/m3u8 card).
     """
-    rich_src = None
+    # v11: ek se zyada image URL candidates (label, url); jo Telegram accept kare
+    srcs = []
     if RICH_AVAILABLE and title is not None:
-        # v7: http URL -> local thumb temp-upload -> YouTube thumb URL
-        rich_src = (
-            _rich_src(img, None)
-            or await _temp_public_url(img)
-            or _rich_src(None, rich_img_url)
-        )
+        direct = _rich_src(img, None)
+        if direct:
+            srcs.append(("direct", direct))
+        else:
+            up = await _temp_public_url(img)
+            if up:
+                srcs.append(("upload", up))
+        yt = _norm_yt(rich_img_url)
+        if yt and yt not in [u for _l, u in srcs]:
+            srcs.append(("yt", yt))
     if not RICH_AVAILABLE:
         await _report_rich_error("stream._rich_photo_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
-    elif title is not None and not rich_src:
+    elif title is not None and not srcs:
         await _report_rich_error("stream._rich_photo_card", "no-url", f"no public image URL for: {img}")
     elif title is not None:
         rows = []
@@ -221,25 +241,33 @@ async def _rich_photo_card(
         if extra_rows:
             rows.extend(extra_rows)
         table = rich_kv_table(rows)
-        head = rich_img(rich_src) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
-        attempts = (
-            ("details+emoji-render",
-             render_custom_emojis(head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
-            ("details-no-render",
-             head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)),
-            ("plain-table",
-             render_custom_emojis(head + table)),
-        )
-        for name, body in attempts:
-            try:
-                return await app.send_rich_message(
-                    chat_id=chat_id,
-                    rich_message=_input_rich(body),
-                    reply_markup=markup,
-                )
-            except Exception as ex:
-                traceback.print_exc()
-                await _report_rich_error("stream._rich_photo_card", name, ex)
+        for label, src in srcs:
+            head = rich_img(src) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
+            attempts = (
+                ("details+emoji-render",
+                 render_custom_emojis(head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
+                ("details-no-render",
+                 head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)),
+                ("plain-table",
+                 render_custom_emojis(head + table)),
+            )
+            for name, body in attempts:
+                try:
+                    return await app.send_rich_message(
+                        chat_id=chat_id,
+                        rich_message=_input_rich(body),
+                        reply_markup=markup,
+                    )
+                except Exception as ex:
+                    traceback.print_exc()
+                    # v11: error me image URL bhi (label se dedupe, URL text me)
+                    await _report_rich_error(
+                        "stream._rich_photo_card",
+                        f"{name}|{label}",
+                        f"{type(ex).__name__}: {ex} | src={src}",
+                    )
+                    if "RICH_MESSAGE_PHOTO" in str(ex):
+                        break  # image ka issue hai, layout ka nahi -> next URL
     return await app.send_photo(
         chat_id,
         photo=img,

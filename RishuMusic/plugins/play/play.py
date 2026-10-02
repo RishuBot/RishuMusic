@@ -69,7 +69,11 @@ async def _rich_card(
             table = rich_kv_table(rows)
             rich_body = rich_img(img) + "\n" + table
             rich_body = render_custom_emojis(rich_body)
-            await mystic.edit_message_text(
+            # edit_message_text(rich_message=...) is a Client method, not a
+            # Message method — must be called on `app`, not on `mystic`.
+            await app.edit_message_text(
+                chat_id=mystic.chat.id,
+                message_id=mystic.id,
                 rich_message=_input_rich(rich_body),
                 reply_markup=markup,
             )

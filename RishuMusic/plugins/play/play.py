@@ -1,17 +1,22 @@
 # ============================================================
-# play.py — v2
+# play.py — v5
+# CHANGELOG (v4 -> v5):
+#   - Error ab OWNER_ID ke DM me aata hai (fail ho to LOGGER_ID fallback).
+# CHANGELOG (v3 -> v4):
+#   - Rich fail hone par exact error ab LOGGER_ID chat me aata hai
+#     (once per unique error, spam nahi). Container logs ki zarurat nahi.
+# CHANGELOG (v2 -> v3):
+#   - 3 attempts: dropdown+emoji-render -> dropdown (no render) -> plain table.
+#   - _rich_details(): empty emoji default.
 # CHANGELOG (v1 -> v2):
-#   - Added _rich_details() helper: wraps the table in
-#     <details><summary>...</summary>TABLE</details> (same open/close
-#     dropdown as BOT SNAPSHOT in start.py).
-#   - _rich_card(): rich_body now uses _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)
-#     instead of the bare table. Thumbnail stays outside the dropdown.
-#   - Fallbacks (edit_media / reply_photo) unchanged.
-#   - en.yml: NO change needed (labels are hardcoded here).
+#   - Table ab <details>/<summary> dropdown ke andar.
+# en.yml: no change needed.
 # ============================================================
 
 import random
 import string
+import traceback
+from html import escape as _html_escape
 
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InputMediaPhoto, Message
@@ -55,11 +60,31 @@ _PLATFORM_LABELS = {
 }
 
 
-# v2 NEW
-def _rich_details(title: str, table: str, emoji: str = "🎵") -> str:
-    # <summary> me sirf plain text + <b> + emoji (<h2>/<a> andar daalne se
-    # title blank ho jata hai — start.py v19 ka lesson).
-    return f"<details><summary>{emoji} <b>{title}</b></summary>{table}</details>"
+# v4 NEW: rich fail hone par exact error LOGGER_ID chat me aayega (no logs needed)
+_reported = set()
+
+
+async def _report_rich_error(where: str, name: str, ex) -> None:
+    text = f"{type(ex).__name__}: {ex}" if isinstance(ex, BaseException) else str(ex)
+    key = (where, name, text[:80])
+    if key in _reported:  # same error baar-baar spam na ho
+        return
+    _reported.add(key)
+    msg = f"⚠️ <b>{where}</b> [{name}] failed\n<code>{_html_escape(text[:900])}</code>"
+    # v5: pehle Owner ke DM me, owner ne bot start nahi kiya ho to LOGGER_ID me
+    try:
+        await app.send_message(config.OWNER_ID, msg)
+    except Exception:
+        try:
+            await app.send_message(config.LOGGER_ID, msg)
+        except Exception:
+            pass
+
+
+# v4 (v3 se same, emoji default empty)
+def _rich_details(title: str, table: str, emoji: str = "") -> str:
+    lead = f"{emoji} " if emoji else ""
+    return f"<details><summary>{lead}<b>{title}</b></summary>{table}</details>"
 
 
 async def _rich_card(
@@ -85,24 +110,32 @@ async def _rich_card(
     """
     markup = InlineKeyboardMarkup(buttons)
 
-    if RICH_AVAILABLE and img and rows:
-        try:
-            table = rich_kv_table(rows)
-            # v1: rich_body = rich_img(img) + "\n" + table
-            # v2:
-            rich_body = rich_img(img) + "\n" + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)
-            rich_body = render_custom_emojis(rich_body)
-            # edit_message_text(rich_message=...) is a Client method, not a
-            # Message method — must be called on `app`, not on `mystic`.
-            await app.edit_message_text(
-                chat_id=mystic.chat.id,
-                message_id=mystic.id,
-                rich_message=_input_rich(rich_body),
-                reply_markup=markup,
-            )
-            return
-        except Exception:
-            pass
+    if not RICH_AVAILABLE:
+        await _report_rich_error("play._rich_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
+    elif img and rows:
+        table = rich_kv_table(rows)
+        attempts = (
+            ("details+emoji-render",
+             render_custom_emojis(
+                 rich_img(img) + "\n" + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
+            ("details-no-render",
+             rich_img(img) + "\n" + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)),
+            ("plain-table",
+             render_custom_emojis(rich_img(img) + "\n" + table)),
+        )
+        for name, body in attempts:
+            try:
+                # edit_message_text(rich_message=...) Client method hai -> app pe
+                await app.edit_message_text(
+                    chat_id=mystic.chat.id,
+                    message_id=mystic.id,
+                    rich_message=_input_rich(body),
+                    reply_markup=markup,
+                )
+                return
+            except Exception as ex:
+                traceback.print_exc()
+                await _report_rich_error("play._rich_card", name, ex)
 
     cap = render_custom_emojis(cap)
     try:

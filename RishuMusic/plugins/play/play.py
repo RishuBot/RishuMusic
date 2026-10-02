@@ -23,28 +23,52 @@ from RishuMusic.utils.inline import (
 )
 from RishuMusic.utils.logger import play_logs
 from RishuMusic.utils.premium_emojis import render_custom_emojis
-from RishuMusic.utils.rich_ui import RICH_AVAILABLE, _input_rich, rich_img
+from RishuMusic.utils.rich_ui import (
+    RICH_AVAILABLE,
+    _input_rich,
+    rich_esc,
+    rich_img,
+    rich_kv_table,
+)
 from RishuMusic.utils.stream.stream import stream
 from config import BANNED_USERS, lyrical
 
 
-async def _rich_card(mystic: Message, message: Message, img: str, cap: str, buttons) -> None:
+_PLATFORM_LABELS = {
+    "yt": "YᴏᴜTᴜʙᴇ Pʟᴀʏʟɪsᴛ",
+    "spplay": "Spᴏᴛɪғʏ Pʟᴀʏʟɪsᴛ",
+    "spalbum": "Spᴏᴛɪғʏ Aʟʙᴜᴍ",
+    "spartist": "Spᴏᴛɪғʏ Aʀᴛɪsᴛ",
+    "apple": "Aᴘᴘʟᴇ Mᴜsɪᴄ Pʟᴀʏʟɪsᴛ",
+}
+
+
+async def _rich_card(
+    mystic: Message, message: Message, img: str, cap: str, buttons, *,
+    rows=None,
+) -> None:
     """Turn the 'Processing...' message into a card showing the thumbnail
-    AND rich-formatted text/buttons together, in one real Bot API 10.2+
-    Rich Message (not a photo caption — captions can't hold rich tags).
+    AND a real HTML ``<table>`` together, in one Bot API 10.2+ Rich Message
+    (not a photo caption — captions can't hold tables).
+
+    ``rows``: list of ``(label, value)`` pairs for the table. Pass pre-built
+    rows (already ``rich_esc``'d where the value is untrusted, e.g. a song
+    title or username) — see the call sites below.
 
     3-tier fallback, thumbnail guaranteed either way:
-      1. Native rich edit: <img> + text as one Rich Message (image + rich
-         text side by side, in-place edit, no delete/resend).
-      2. edit_media: plain photo caption, in-place edit.
+      1. Native rich edit: <img> + a real <table>, in-place edit, no
+         delete/resend.
+      2. edit_media: plain photo caption (``cap``, the original strings-file
+         text), in-place edit.
       3. delete + reply_photo: last resort if even #2 fails.
     """
     markup = InlineKeyboardMarkup(buttons)
-    cap = render_custom_emojis(cap)
 
-    if RICH_AVAILABLE and img:
+    if RICH_AVAILABLE and img and rows:
         try:
-            rich_body = rich_img(img) + "\n" + cap
+            table = rich_kv_table(rows)
+            rich_body = rich_img(img) + "\n" + table
+            rich_body = render_custom_emojis(rich_body)
             await mystic.edit_message_text(
                 rich_message=_input_rich(rich_body),
                 reply_markup=markup,
@@ -53,6 +77,7 @@ async def _rich_card(mystic: Message, message: Message, img: str, cap: str, butt
         except Exception:
             pass
 
+    cap = render_custom_emojis(cap)
     try:
         await mystic.edit_media(
             InputMediaPhoto(media=img, caption=cap),
@@ -434,11 +459,11 @@ async def play_commnd(
                 "c" if channel else "g",
                 "f" if fplay else "d",
             )
-            # Edited in place (text -> photo+caption) instead of delete + a
-            # brand-new reply_photo — same message id, no flicker/reorder in
-            # the chat. If edit_media fails for any reason, fall back to the
-            # old delete+reply_photo so playback never breaks over this.
-            await _rich_card(mystic, message, img, cap, buttons)
+            rows = [
+                ("ᴘʟᴀʏʟɪsᴛ", _PLATFORM_LABELS.get(plist_type, rich_esc(plist_type))),
+                ("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(message.from_user.first_name)),
+            ]
+            await _rich_card(mystic, message, img, cap, buttons, rows=rows)
             return await play_logs(message, streamtype=f"Playlist : {plist_type}")
         else:
             if slider:
@@ -455,7 +480,12 @@ async def play_commnd(
                     details["title"].title(),
                     details["duration_min"],
                 )
-                await _rich_card(mystic, message, details["thumb"], cap, buttons)
+                rows = [
+                    ("ᴛɪᴛʟᴇ", rich_esc(details["title"].title())),
+                    ("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(details['duration_min'])} ᴍɪɴᴜᴛᴇs"),
+                    ("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(message.from_user.first_name)),
+                ]
+                await _rich_card(mystic, message, details["thumb"], cap, buttons, rows=rows)
                 return await play_logs(message, streamtype=f"Searched on Youtube")
             else:
                 buttons = track_markup(
@@ -465,7 +495,12 @@ async def play_commnd(
                     "c" if channel else "g",
                     "f" if fplay else "d",
                 )
-                await _rich_card(mystic, message, img, cap, buttons)
+                rows = [
+                    ("ᴛɪᴛʟᴇ", rich_esc(details["title"])),
+                    ("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(details['duration_min'])} ᴍɪɴᴜᴛᴇs"),
+                    ("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(message.from_user.first_name)),
+                ]
+                await _rich_card(mystic, message, img, cap, buttons, rows=rows)
                 return await play_logs(message, streamtype=f"URL Searched Inline")
 
 

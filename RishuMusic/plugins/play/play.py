@@ -1,3 +1,15 @@
+# ============================================================
+# play.py — v2
+# CHANGELOG (v1 -> v2):
+#   - Added _rich_details() helper: wraps the table in
+#     <details><summary>...</summary>TABLE</details> (same open/close
+#     dropdown as BOT SNAPSHOT in start.py).
+#   - _rich_card(): rich_body now uses _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)
+#     instead of the bare table. Thumbnail stays outside the dropdown.
+#   - Fallbacks (edit_media / reply_photo) unchanged.
+#   - en.yml: NO change needed (labels are hardcoded here).
+# ============================================================
+
 import random
 import string
 
@@ -43,6 +55,13 @@ _PLATFORM_LABELS = {
 }
 
 
+# v2 NEW
+def _rich_details(title: str, table: str, emoji: str = "🎵") -> str:
+    # <summary> me sirf plain text + <b> + emoji (<h2>/<a> andar daalne se
+    # title blank ho jata hai — start.py v19 ka lesson).
+    return f"<details><summary>{emoji} <b>{title}</b></summary>{table}</details>"
+
+
 async def _rich_card(
     mystic: Message, message: Message, img: str, cap: str, buttons, *,
     rows=None,
@@ -51,12 +70,14 @@ async def _rich_card(
     AND a real HTML ``<table>`` together, in one Bot API 10.2+ Rich Message
     (not a photo caption — captions can't hold tables).
 
+    v2: the table now sits inside a <details>/<summary> dropdown.
+
     ``rows``: list of ``(label, value)`` pairs for the table. Pass pre-built
     rows (already ``rich_esc``'d where the value is untrusted, e.g. a song
     title or username) — see the call sites below.
 
     3-tier fallback, thumbnail guaranteed either way:
-      1. Native rich edit: <img> + a real <table>, in-place edit, no
+      1. Native rich edit: <img> + dropdown <table>, in-place edit, no
          delete/resend.
       2. edit_media: plain photo caption (``cap``, the original strings-file
          text), in-place edit.
@@ -67,7 +88,9 @@ async def _rich_card(
     if RICH_AVAILABLE and img and rows:
         try:
             table = rich_kv_table(rows)
-            rich_body = rich_img(img) + "\n" + table
+            # v1: rich_body = rich_img(img) + "\n" + table
+            # v2:
+            rich_body = rich_img(img) + "\n" + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)
             rich_body = render_custom_emojis(rich_body)
             # edit_message_text(rich_message=...) is a Client method, not a
             # Message method — must be called on `app`, not on `mystic`.

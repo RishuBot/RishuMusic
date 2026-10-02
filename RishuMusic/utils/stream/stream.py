@@ -1,16 +1,20 @@
 # ============================================================
-# stream.py — v2
+# stream.py — v5
+# CHANGELOG (v4 -> v5):
+#   - Error ab OWNER_ID ke DM me aata hai (fail ho to LOGGER_ID fallback).
+# CHANGELOG (v3 -> v4):
+#   - Rich fail hone par exact error ab LOGGER_ID chat me aata hai
+#     (once per unique error). Container logs ki zarurat nahi.
+# CHANGELOG (v2 -> v3):
+#   - 3 attempts: dropdown+emoji-render -> dropdown (no render) -> plain table.
 # CHANGELOG (v1 -> v2):
-#   - Added _rich_details() helper (<details><summary>...</summary>
-#     TABLE</details> dropdown, same as BOT SNAPSHOT in start.py).
-#   - _rich_photo_card(): "Now Streaming" table now goes inside the
-#     dropdown ("ᴛʀᴀᴄᴋ ɪɴғᴏ"). Heading "❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●" and the
-#     thumbnail stay outside it.
-#   - Fallback (send_photo with plain_cap) unchanged.
-#   - en.yml: NO change needed.
+#   - "Now Streaming" table ab <details>/<summary> dropdown ke andar.
+# en.yml: no change needed.
 # ============================================================
 
 import os
+import traceback
+from html import escape as _html_escape
 from random import randint
 from typing import Union
 
@@ -40,10 +44,31 @@ from RishuMusic.utils.stream.queue import put_queue, put_queue_index
 from RishuMusic.utils.thumbnails import get_thumb
 
 
-# v2 NEW
-def _rich_details(title: str, table: str, emoji: str = "🎵") -> str:
-    # <summary> me sirf plain text + <b> + emoji (<h2>/<a> andar nahi).
-    return f"<details><summary>{emoji} <b>{title}</b></summary>{table}</details>"
+# v4 NEW: rich fail hone par exact error LOGGER_ID chat me aayega (no logs needed)
+_reported = set()
+
+
+async def _report_rich_error(where: str, name: str, ex) -> None:
+    text = f"{type(ex).__name__}: {ex}" if isinstance(ex, BaseException) else str(ex)
+    key = (where, name, text[:80])
+    if key in _reported:  # same error baar-baar spam na ho
+        return
+    _reported.add(key)
+    msg = f"⚠️ <b>{where}</b> [{name}] failed\n<code>{_html_escape(text[:900])}</code>"
+    # v5: pehle Owner ke DM me, owner ne bot start nahi kiya ho to LOGGER_ID me
+    try:
+        await app.send_message(config.OWNER_ID, msg)
+    except Exception:
+        try:
+            await app.send_message(config.LOGGER_ID, msg)
+        except Exception:
+            pass
+
+
+# v4 (v3 se same, emoji default empty)
+def _rich_details(title: str, table: str, emoji: str = "") -> str:
+    lead = f"{emoji} " if emoji else ""
+    return f"<details><summary>{lead}<b>{title}</b></summary>{table}</details>"
 
 
 async def _rich_photo_card(
@@ -62,40 +87,40 @@ async def _rich_photo_card(
     table, or leave them unset to fall back to plain_cap even in the rich
     path (used for cards that have no song info, e.g. the index/m3u8 card).
     """
-    if RICH_AVAILABLE and img and title is not None:
-        try:
-            rows = []
-            title_cell = rich_esc(title)
-            if link:
-                title_cell = f'<a href="{rich_esc(link)}">{title_cell}</a>'
-            rows.append(("ᴛɪᴛʟᴇ", title_cell))
-            if duration_min is not None:
-                rows.append(("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(duration_min)} ᴍɪɴᴜᴛᴇs"))
-            if user_name is not None:
-                rows.append(("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(user_name)))
-            if extra_rows:
-                rows.extend(extra_rows)
-            table = rich_kv_table(rows)
-            # v1:
-            # body = (
-            #     rich_img(img)
-            #     + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
-            #     + table
-            # )
-            # v2:
-            body = (
-                rich_img(img)
-                + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
-                + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)
-            )
-            body = render_custom_emojis(body)
-            return await app.send_rich_message(
-                chat_id=chat_id,
-                rich_message=_input_rich(body),
-                reply_markup=markup,
-            )
-        except Exception:
-            pass
+    if not RICH_AVAILABLE:
+        await _report_rich_error("stream._rich_photo_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
+    elif img and title is not None:
+        rows = []
+        title_cell = rich_esc(title)
+        if link:
+            title_cell = f'<a href="{rich_esc(link)}">{title_cell}</a>'
+        rows.append(("ᴛɪᴛʟᴇ", title_cell))
+        if duration_min is not None:
+            rows.append(("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(duration_min)} ᴍɪɴᴜᴛᴇs"))
+        if user_name is not None:
+            rows.append(("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(user_name)))
+        if extra_rows:
+            rows.extend(extra_rows)
+        table = rich_kv_table(rows)
+        head = rich_img(img) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
+        attempts = (
+            ("details+emoji-render",
+             render_custom_emojis(head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
+            ("details-no-render",
+             head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)),
+            ("plain-table",
+             render_custom_emojis(head + table)),
+        )
+        for name, body in attempts:
+            try:
+                return await app.send_rich_message(
+                    chat_id=chat_id,
+                    rich_message=_input_rich(body),
+                    reply_markup=markup,
+                )
+            except Exception as ex:
+                traceback.print_exc()
+                await _report_rich_error("stream._rich_photo_card", name, ex)
     return await app.send_photo(
         chat_id,
         photo=img,

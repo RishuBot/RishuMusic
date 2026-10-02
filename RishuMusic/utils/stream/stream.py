@@ -1,3 +1,4 @@
+import os
 from random import randint
 from typing import Union
 
@@ -15,8 +16,67 @@ from RishuMusic.utils.inline import aq_markup, close_markup, stream_markup
 
 # v6
 from RishuMusic.utils.pastebin import ShreeBin as shreeBin
+from RishuMusic.utils.premium_emojis import render_custom_emojis
+from RishuMusic.utils.rich_ui import (
+    RICH_AVAILABLE,
+    _input_rich,
+    rich_esc,
+    rich_img,
+    rich_kv_table,
+)
 from RishuMusic.utils.stream.queue import put_queue, put_queue_index
 from RishuMusic.utils.thumbnails import get_thumb
+
+
+async def _rich_photo_card(
+    chat_id, img, markup, plain_cap, *, title=None, duration_min=None,
+    user_name=None, link=None, extra_rows=None,
+):
+    """Send the 'Now Streaming' card as a real Bot API 10.2+ Rich Message:
+    thumbnail + a genuine HTML ``<table>`` (not just bold-labelled text).
+
+    ``plain_cap`` (the existing stream_1/stream_2-formatted string) is kept
+    as the fallback caption if rich delivery isn't available on this
+    client/account or fails for any reason — the card always sends either
+    way, this only changes how it renders when it works.
+
+    Pass either (title, duration_min, user_name[, link]) to get a real
+    table, or leave them unset to fall back to plain_cap even in the rich
+    path (used for cards that have no song info, e.g. the index/m3u8 card).
+    """
+    if RICH_AVAILABLE and img and title is not None:
+        try:
+            rows = []
+            title_cell = rich_esc(title)
+            if link:
+                title_cell = f'<a href="{rich_esc(link)}">{title_cell}</a>'
+            rows.append(("ᴛɪᴛʟᴇ", title_cell))
+            if duration_min is not None:
+                rows.append(("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(duration_min)} ᴍɪɴᴜᴛᴇs"))
+            if user_name is not None:
+                rows.append(("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(user_name)))
+            if extra_rows:
+                rows.extend(extra_rows)
+            table = rich_kv_table(rows)
+            body = (
+                rich_img(img)
+                + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
+                + table
+            )
+            body = render_custom_emojis(body)
+            return await app.send_rich_message(
+                chat_id=chat_id,
+                rich_message=_input_rich(body),
+                reply_markup=markup,
+            )
+        except Exception:
+            pass
+    return await app.send_photo(
+        chat_id,
+        photo=img,
+        caption=render_custom_emojis(plain_cap),
+        reply_markup=markup,
+    )
 
 
 async def stream(
@@ -101,18 +161,18 @@ async def stream(
                     "video" if video else "audio",
                     forceplay=forceplay,
                 )
-                img = await get_thumb(vidid,user_id)
+                img = await get_thumb(vidid, user_id)
                 button = stream_markup(_, chat_id)
-                run = await app.send_photo(
+                link = f"https://t.me/{app.username}?start=info_{vidid}"
+                run = await _rich_photo_card(
                     original_chat_id,
-                    photo=img,
-                    caption=_["stream_1"].format(
-                        f"https://t.me/{app.username}?start=info_{vidid}",
-                        title[:23],
-                        duration_min,
-                        user_name,
-                    ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                    img,
+                    InlineKeyboardMarkup(button),
+                    _["stream_1"].format(link, title[:23], duration_min, user_name),
+                    title=title[:23],
+                    duration_min=duration_min,
+                    user_name=user_name,
+                    link=link,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"
@@ -187,18 +247,18 @@ async def stream(
                 "video" if video else "audio",
                 forceplay=forceplay,
             )
-            img = await get_thumb(vidid,user_id)
+            img = await get_thumb(vidid, user_id)
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
+            link = f"https://t.me/{app.username}?start=info_{vidid}"
+            run = await _rich_photo_card(
                 original_chat_id,
-                photo=img,
-                caption=_["stream_1"].format(
-                    f"https://t.me/{app.username}?start=info_{vidid}",
-                    title[:23],
-                    duration_min,
-                    user_name,
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+                img,
+                InlineKeyboardMarkup(button),
+                _["stream_1"].format(link, title[:23], duration_min, user_name),
+                title=title[:23],
+                duration_min=duration_min,
+                user_name=user_name,
+                link=link,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
@@ -242,13 +302,17 @@ async def stream(
                 forceplay=forceplay,
             )
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
+            run = await _rich_photo_card(
                 original_chat_id,
-                photo=config.SOUNCLOUD_IMG_URL,
-                caption=_["stream_1"].format(
+                config.SOUNCLOUD_IMG_URL,
+                InlineKeyboardMarkup(button),
+                _["stream_1"].format(
                     config.SUPPORT_CHAT, title[:23], duration_min, user_name
                 ),
-                reply_markup=InlineKeyboardMarkup(button),
+                title=title[:23],
+                duration_min=duration_min,
+                user_name=user_name,
+                link=config.SUPPORT_CHAT,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -296,11 +360,15 @@ async def stream(
             if video:
                 await add_active_video_chat(chat_id)
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
+            run = await _rich_photo_card(
                 original_chat_id,
-                photo=config.TELEGRAM_VIDEO_URL if video else config.TELEGRAM_AUDIO_URL,
-                caption=_["stream_1"].format(link, title[:23], duration_min, user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                config.TELEGRAM_VIDEO_URL if video else config.TELEGRAM_AUDIO_URL,
+                InlineKeyboardMarkup(button),
+                _["stream_1"].format(link, title[:23], duration_min, user_name),
+                title=title[:23],
+                duration_min=duration_min,
+                user_name=user_name,
+                link=link,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -355,18 +423,18 @@ async def stream(
                 "video" if video else "audio",
                 forceplay=forceplay,
             )
-            img = await get_thumb(vidid,user_id)
+            img = await get_thumb(vidid, user_id)
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
+            live_link = f"https://t.me/{app.username}?start=info_{vidid}"
+            run = await _rich_photo_card(
                 original_chat_id,
-                photo=img,
-                caption=_["stream_1"].format(
-                    f"https://t.me/{app.username}?start=info_{vidid}",
-                    title[:23],
-                    duration_min,
-                    user_name,
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+                img,
+                InlineKeyboardMarkup(button),
+                _["stream_1"].format(live_link, title[:23], duration_min, user_name),
+                title=title[:23],
+                duration_min=duration_min,
+                user_name=user_name,
+                link=live_link,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -412,11 +480,13 @@ async def stream(
                 forceplay=forceplay,
             )
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
+            run = await _rich_photo_card(
                 original_chat_id,
-                photo=config.STREAM_IMG_URL,
-                caption=_["stream_2"].format(user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                config.STREAM_IMG_URL,
+                InlineKeyboardMarkup(button),
+                _["stream_2"].format(user_name),
+                title=title,
+                user_name=user_name,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"

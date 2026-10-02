@@ -1,3 +1,15 @@
+# ============================================================
+# skip.py — v2   (v1 = your original file)
+# CHANGELOG (v1 -> v2):
+#   - Skip ke baad "Now Streaming" card ab rich card (thumbnail + dropdown
+#     table) hai, /play jaisa. Pehle message.reply_photo se plain caption
+#     aa raha tha, isliye "normal" dikhta tha.
+#   - Naya _card() helper -> stream.py ka rich_now_playing() call karta hai
+#     (rich fail ho to wo khud plain photo caption pe fallback karta hai).
+#   - Saare reply_photo(stream_1 / stream_2) calls _card() se replace
+#     (marked "# v2" neeche). Baaki logic same.
+# ============================================================
+
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, Message
 
@@ -9,8 +21,31 @@ from RishuMusic.utils.autoplay import enqueue_next as autoplay_next  # autoplay 
 from RishuMusic.utils.database import get_loop
 from RishuMusic.utils.decorators import AdminRightsCheck
 from RishuMusic.utils.inline import close_markup, stream_markup
+from RishuMusic.utils.stream.stream import rich_now_playing  # v2 NEW
 from RishuMusic.utils.thumbnails import get_thumb
 from config import BANNED_USERS,autoclean
+
+
+# v2 NEW
+def _yt_thumb(videoid):
+    return f"https://i.ytimg.com/vi/{videoid}/hqdefault.jpg"
+
+
+# v2 NEW
+async def _card(chat_id, img, button, _, title, dur, user, link,
+                plain_cap=None, rich_img_url=None):
+    cap = plain_cap or _["stream_1"].format(link, title[:23], dur, user)
+    return await rich_now_playing(
+        chat_id,
+        img,
+        InlineKeyboardMarkup(button),
+        cap,
+        title=title[:23],
+        duration_min=dur,
+        user_name=user,
+        link=link,
+        rich_img_url=rich_img_url,
+    )
 
 
 @app.on_message(
@@ -121,15 +156,11 @@ async def skip(cli, message: Message, _, chat_id):
             return await message.reply_text(_["call_6"])
         button = stream_markup(_, chat_id)
         img = await get_thumb(videoid,user_id)
-        run = await message.reply_photo(
-            photo=img,
-            caption=_["stream_1"].format(
-                f"https://t.me/{app.username}?start=info_{videoid}",
-                title[:23],
-                check[0]["dur"],
-                user,
-            ),
-            reply_markup=InlineKeyboardMarkup(button),
+        # v2: reply_photo -> _card (rich)
+        run = await _card(
+            message.chat.id, img, button, _, title, check[0]["dur"], user,
+            f"https://t.me/{app.username}?start=info_{videoid}",
+            rich_img_url=_yt_thumb(videoid),
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "tg"
@@ -154,15 +185,11 @@ async def skip(cli, message: Message, _, chat_id):
             return await mystic.edit_text(_["call_6"])
         button = stream_markup(_, chat_id)
         img = await get_thumb(videoid,user_id)
-        run = await message.reply_photo(
-            photo=img,
-            caption=_["stream_1"].format(
-                f"https://t.me/{app.username}?start=info_{videoid}",
-                title[:23],
-                check[0]["dur"],
-                user,
-            ),
-            reply_markup=InlineKeyboardMarkup(button),
+        # v2: reply_photo -> _card (rich)
+        run = await _card(
+            message.chat.id, img, button, _, title, check[0]["dur"], user,
+            f"https://t.me/{app.username}?start=info_{videoid}",
+            rich_img_url=_yt_thumb(videoid),
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "stream"
@@ -173,10 +200,11 @@ async def skip(cli, message: Message, _, chat_id):
         except:
             return await message.reply_text(_["call_6"])
         button = stream_markup(_, chat_id)
-        run = await message.reply_photo(
-            photo=config.STREAM_IMG_URL,
-            caption=_["stream_2"].format(user),
-            reply_markup=InlineKeyboardMarkup(button),
+        # v2: reply_photo -> _card (rich)
+        run = await _card(
+            message.chat.id, config.STREAM_IMG_URL, button, _,
+            "ɪɴᴅᴇx ᴏʀ ᴍ3ᴜ8 ʟɪɴᴋ", None, user, None,
+            plain_cap=_["stream_2"].format(user),
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "tg"
@@ -196,42 +224,36 @@ async def skip(cli, message: Message, _, chat_id):
             return await message.reply_text(_["call_6"])
         if videoid == "telegram":
             button = stream_markup(_, chat_id)
-            run = await message.reply_photo(
-                photo=config.TELEGRAM_AUDIO_URL
+            # v2: reply_photo -> _card (rich)
+            run = await _card(
+                message.chat.id,
+                config.TELEGRAM_AUDIO_URL
                 if str(streamtype) == "audio"
                 else config.TELEGRAM_VIDEO_URL,
-                caption=_["stream_1"].format(
-                    config.SUPPORT_CHAT, title[:23], check[0]["dur"], user
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+                button, _, title, check[0]["dur"], user, config.SUPPORT_CHAT,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
         elif videoid == "soundcloud":
             button = stream_markup(_, chat_id)
-            run = await message.reply_photo(
-                photo=config.SOUNCLOUD_IMG_URL
+            # v2: reply_photo -> _card (rich)
+            run = await _card(
+                message.chat.id,
+                config.SOUNCLOUD_IMG_URL
                 if str(streamtype) == "audio"
                 else config.TELEGRAM_VIDEO_URL,
-                caption=_["stream_1"].format(
-                    config.SUPPORT_CHAT, title[:23], check[0]["dur"], user
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+                button, _, title, check[0]["dur"], user, config.SUPPORT_CHAT,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
         else:
             button = stream_markup(_, chat_id)
             img = await get_thumb(videoid,user_id)
-            run = await message.reply_photo(
-                photo=img,
-                caption=_["stream_1"].format(
-                    f"https://t.me/{app.username}?start=info_{videoid}",
-                    title[:23],
-                    check[0]["dur"],
-                    user,
-                ),
-                reply_markup=InlineKeyboardMarkup(button),
+            # v2: reply_photo -> _card (rich)
+            run = await _card(
+                message.chat.id, img, button, _, title, check[0]["dur"], user,
+                f"https://t.me/{app.username}?start=info_{videoid}",
+                rich_img_url=_yt_thumb(videoid),
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"

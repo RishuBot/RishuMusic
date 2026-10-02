@@ -1,5 +1,11 @@
 # ============================================================
-# stream.py — v6
+# stream.py — v7
+# CHANGELOG (v6 -> v7):
+#   - Requested-by mention fix: _plain_name() strips the raw <a href=tg://..>
+#     tag, shows bold plain name (no more literal HTML in the table).
+#   - _temp_public_url(): local get_thumb() image is uploaded to litterbox
+#     (temp host, TEMP_TIME=72h) so the rich card shows YOUR generated thumb.
+#     Order: http img -> temp upload -> YouTube thumb URL. Needs aiohttp.
 # CHANGELOG (v5 -> v6):
 #   - FIX RICH_MESSAGE_PHOTO_URL_INVALID: get_thumb() returns a LOCAL file,
 #     rich <img> needs a public URL. New _rich_src() + rich_img_url param;
@@ -19,8 +25,10 @@
 # ============================================================
 
 import os
+import re
 import traceback
 from html import escape as _html_escape
+from html import unescape as _html_unescape
 from random import randint
 from typing import Union
 
@@ -77,6 +85,50 @@ def _rich_details(title: str, table: str, emoji: str = "") -> str:
     return f"<details><summary>{lead}<b>{title}</b></summary>{table}</details>"
 
 
+# v7 NEW: temp public URL (litterbox = catbox ka temporary host).
+# TEMP_TIME: "1h" / "12h" / "24h" / "72h"
+TEMP_TIME = "1h"
+_upload_cache = {}
+
+
+async def _temp_public_url(path):
+    """Local thumb file -> temp public https URL. None if it fails."""
+    path = str(path or "")
+    if not path or path.startswith(("http://", "https://")) or not os.path.isfile(path):
+        return None
+    if path in _upload_cache:
+        return _upload_cache[path]
+    try:
+        import aiohttp
+
+        data = aiohttp.FormData()
+        data.add_field("reqtype", "fileupload")
+        data.add_field("time", TEMP_TIME)
+        with open(path, "rb") as f:
+            data.add_field("fileToUpload", f.read(), filename=os.path.basename(path))
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as sess:
+            async with sess.post(
+                "https://litterbox.catbox.moe/resources/internals/api.php", data=data
+            ) as r:
+                url = (await r.text()).strip()
+        if url.startswith("https://"):
+            if len(_upload_cache) > 200:
+                _upload_cache.clear()
+            _upload_cache[path] = url
+            return url
+        await _report_rich_error("stream._temp_public_url", "upload", f"bad response: {url[:200]}")
+    except Exception as ex:
+        await _report_rich_error("stream._temp_public_url", "upload", ex)
+    return None
+
+
+# v7 NEW: user_name aksar pyrogram .mention hota hai (<a href="tg://...">Naam</a>),
+# rich body me wo literal text dikhta tha. Tags hata ke plain naam.
+def _plain_name(user_name) -> str:
+    name = _html_unescape(re.sub(r"<[^>]+>", "", str(user_name or ""))).strip()
+    return name or "User"
+
+
 # v6 NEW: rich <img> ko public http(s) URL chahiye (local cache path =
 # RICH_MESSAGE_PHOTO_URL_INVALID). img URL ho to wahi, warna rich_img_url.
 def _rich_src(img, rich_img_url=None):
@@ -103,12 +155,19 @@ async def _rich_photo_card(
     table, or leave them unset to fall back to plain_cap even in the rich
     path (used for cards that have no song info, e.g. the index/m3u8 card).
     """
+    rich_src = None
+    if RICH_AVAILABLE and title is not None:
+        # v7: http URL -> local thumb temp-upload -> YouTube thumb URL
+        rich_src = (
+            _rich_src(img, None)
+            or await _temp_public_url(img)
+            or _rich_src(None, rich_img_url)
+        )
     if not RICH_AVAILABLE:
         await _report_rich_error("stream._rich_photo_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
-    elif title is not None and not _rich_src(img, rich_img_url):
-        await _report_rich_error("stream._rich_photo_card", "no-url", f"img is local path, no rich_img_url given: {img}")
+    elif title is not None and not rich_src:
+        await _report_rich_error("stream._rich_photo_card", "no-url", f"no public image URL for: {img}")
     elif title is not None:
-        rich_src = _rich_src(img, rich_img_url)
         rows = []
         title_cell = rich_esc(title)
         if link:
@@ -117,7 +176,7 @@ async def _rich_photo_card(
         if duration_min is not None:
             rows.append(("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(duration_min)} ᴍɪɴᴜᴛᴇs"))
         if user_name is not None:
-            rows.append(("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(user_name)))
+            rows.append(("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", f"<b>{rich_esc(_plain_name(user_name))}</b>"))
         if extra_rows:
             rows.extend(extra_rows)
         table = rich_kv_table(rows)

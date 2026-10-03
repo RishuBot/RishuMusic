@@ -1,5 +1,13 @@
 # ============================================================
-# stream.py — v13
+# stream.py — v14
+# CHANGELOG (v13 -> v14):
+#   - Rich pills are now CALLBACK buttons (same "DLAUDIO/DLVIDEO <chat_id>" data
+#     as the inline row -> in-place download, no DM deep-link needed).
+#   - Safety: Telegram rejected type="callback_data" tg-buttons before
+#     (BUTTON_DATA_INVALID). So it tries callback pills first; if rejected it
+#     remembers (_CB_BAD) and falls back to the url deep-link pills, then to no
+#     pills. The rejection error is sent to the Owner DM once.
+#   - PILL_MODE = "callback" | "url" to pick the order manually.
 # CHANGELOG (v12 -> v13):
 #   - "Track Info" is now a big <h1> heading and the table is always visible
 #     (no more collapsed dropdown).
@@ -226,9 +234,23 @@ def _pill(text: str, url: str, style: str) -> str:
     )
 
 
-def _dl_pills(vidid) -> str:
+def _dl_pills(vidid, chat=None, mode="url") -> str:
+    """mode="callback": in-place download (same handler as the inline row).
+    mode="url": deep-link to the bot's DM (always accepted by Telegram)."""
     uname = getattr(app, "username", None)
-    if not (uname and vidid):
+    if not vidid:
+        return ""
+    if mode == "callback":
+        if not chat:
+            return ""
+        return (
+            "<p>"
+            + _pill_cb("🎵 Audio", f"DLAUDIO {chat}", "primary")
+            + " "
+            + _pill_cb("🎬 Video", f"DLVIDEO {chat}", "success")
+            + "</p>"
+        )
+    if not uname:
         return ""
     return (
         "<p>"
@@ -237,6 +259,37 @@ def _dl_pills(vidid) -> str:
         + _pill("🎬 Video", f"https://t.me/{uname}?start=dlv_{vidid}", "success")
         + "</p>"
     )
+
+
+# v14 NEW: callback-type rich pill. Same callback data as the inline row
+# ("DLAUDIO <chat_id>" / "DLVIDEO <chat_id>"), so dlbuttons.py needs no change.
+# NOTE: this tag gave BUTTON_DATA_INVALID in start.py before, so it is tried
+# first and the card falls back to url pills automatically if Telegram rejects it.
+def _pill_cb(text: str, data: str, style: str) -> str:
+    return (
+        f'<tg-button type="callback_data" style="{style}" '
+        f'callback_data="{_html_escape(data, quote=True)}">{text}</tg-button>'
+    )
+
+
+# "callback" = try callback pills first, then url pills. "url" = url pills only.
+PILL_MODE = "callback"
+_CB_BAD = False  # set True after Telegram rejects callback pills (stops retrying)
+
+
+def _chat_key(markup):
+    """voice-chat id (db key) from the stream_markup's "ADMIN <cmd>|<chat_id>" buttons."""
+    try:
+        for r in markup.inline_keyboard:
+            for b in r:
+                d = getattr(b, "callback_data", None)
+                if isinstance(d, bytes):
+                    d = d.decode("utf-8", "ignore")
+                if isinstance(d, str) and d.startswith("ADMIN") and "|" in d:
+                    return d.split("|", 1)[1].split("_")[0].strip()
+    except Exception:
+        pass
+    return None
 
 
 # v12 NEW: play card ke neeche "Audio / Video" download row.
@@ -286,6 +339,7 @@ async def _rich_photo_card(
     table, or leave them unset to fall back to plain_cap even in the rich
     path (used for cards that have no song info, e.g. the index/m3u8 card).
     """
+    global _CB_BAD
     markup = _with_dl_row(markup)  # v12
     if not vidid:  # v13: YouTube cards always carry ...?start=info_<id> as link
         _m = re.search(r"start=info_([\w-]{11})", str(link or ""))
@@ -324,14 +378,25 @@ async def _rich_photo_card(
             head = rich_img(src) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
             # v13: big "Track Info" heading, table always visible, pills under it
             core = head + "<h1>🎵 Track Info</h1>" + table
-            pills = _dl_pills(vidid)
+            chat_key = _chat_key(markup)
+            cb_pills = (
+                _dl_pills(vidid, chat_key, "callback")
+                if PILL_MODE == "callback" and not _CB_BAD
+                else ""
+            )
+            url_pills = _dl_pills(vidid, chat_key, "url")
             attempts = []
-            if pills:
-                attempts.append(("pills+emoji-render", render_custom_emojis(core + pills)))
-                attempts.append(("pills-no-render", core + pills))
+            if cb_pills:
+                attempts.append(("cb-pills+emoji-render", render_custom_emojis(core + cb_pills)))
+                attempts.append(("cb-pills-no-render", core + cb_pills))
+            if url_pills:
+                attempts.append(("url-pills+emoji-render", render_custom_emojis(core + url_pills)))
+                attempts.append(("url-pills-no-render", core + url_pills))
             attempts.append(("heading+emoji-render", render_custom_emojis(core)))
             attempts.append(("plain-table", render_custom_emojis(head + table)))
             for name, body in attempts:
+                if _CB_BAD and name.startswith("cb-"):
+                    continue
                 try:
                     return await app.send_rich_message(
                         chat_id=chat_id,
@@ -340,6 +405,9 @@ async def _rich_photo_card(
                     )
                 except Exception as ex:
                     traceback.print_exc()
+                    # v14: Telegram rejected callback pills -> stop trying them
+                    if name.startswith("cb-") and "BUTTON" in str(ex).upper():
+                        _CB_BAD = True
                     # v11: error me image URL bhi (label se dedupe, URL text me)
                     await _report_rich_error(
                         "stream._rich_photo_card",

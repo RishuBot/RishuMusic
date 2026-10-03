@@ -225,7 +225,7 @@ def _norm_yt(url):
 #   1) rich pills inside the card body, under the table (URL deep-links)
 #   2) a normal inline-keyboard row under the message (callback, in-place)
 # If the rich pills render fine on your client, set this to False to hide row 2.
-SHOW_KB_DL_ROW = True
+SHOW_KB_DL_ROW = False
 
 
 # v13 NEW: rich pill buttons (type="url" is the only tg-button type that works;

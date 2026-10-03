@@ -1,5 +1,10 @@
 # ============================================================
-# callback.py — v2   (v1 = your original file)
+# callback.py — v4   (v1 = your original file)
+# CHANGELOG (v3 -> v4):
+#   - Button labels in English; row respects SHOW_KB_DL_ROW (from stream.py).
+# CHANGELOG (v2 -> v3):
+#   - markup_timer: 7s timer ab Audio/Video download row bhi jodta hai
+#     (_dl_rows), warna timer edit se wo row hat jati.
 # CHANGELOG (v1 -> v2):
 #   - Skip / Replay button ke baad "Now Streaming" card ab rich card
 #     (thumbnail + dropdown table) hai, /play jaisa. Pehle
@@ -33,7 +38,7 @@ from RishuMusic.utils.database import (
 from RishuMusic.utils.decorators.language import languageCB
 from RishuMusic.utils.formatters import seconds_to_min
 from RishuMusic.utils.inline import close_markup, stream_markup, stream_markup_timer
-from RishuMusic.utils.stream.stream import rich_now_playing  # v2 NEW
+from RishuMusic.utils.stream.stream import SHOW_KB_DL_ROW, rich_now_playing  # v2 NEW / v4
 from RishuMusic.utils.thumbnails import get_thumb
 from config import (
     BANNED_USERS,
@@ -377,6 +382,21 @@ async def del_back_playlist(client, CallbackQuery:CallbackQuery, _):
             await CallbackQuery.edit_message_text(txt, reply_markup=close_markup(_))
 
 
+# v3 NEW: sirf YouTube track (live nahi) pe Audio/Video row dikhao
+def _dl_rows(chat_id, track):
+    vid = str(track.get("vidid") or "")
+    if not SHOW_KB_DL_ROW:  # v4: hidden when rich pills are enough
+        return []
+    if "live_" in str(track.get("file") or "") or len(vid) != 11:
+        return []
+    return [
+        [
+            InlineKeyboardButton("🎵 Audio", callback_data=f"DLAUDIO {chat_id}"),
+            InlineKeyboardButton("🎬 Video", callback_data=f"DLVIDEO {chat_id}"),
+        ]
+    ]
+
+
 async def markup_timer():
     while not await asyncio.sleep(7):
         active_chats = await get_active_chats()
@@ -412,6 +432,9 @@ async def markup_timer():
                         seconds_to_min(playing[0]["played"]),
                         playing[0]["dur"],
                     )
+                    # v3: timer har 7s me markup replace karta hai, isliye
+                    # download row yahan bhi jodni zaroori hai (warna gayab ho jati)
+                    buttons = list(buttons) + _dl_rows(chat_id, playing[0])
                     await mystic.edit_reply_markup(
                         reply_markup=InlineKeyboardMarkup(buttons)
                     )

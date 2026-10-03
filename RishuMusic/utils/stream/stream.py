@@ -1,5 +1,18 @@
 # ============================================================
-# stream.py — v11
+# stream.py — v13
+# CHANGELOG (v12 -> v13):
+#   - "Track Info" is now a big <h1> heading and the table is always visible
+#     (no more collapsed dropdown).
+#   - Rich pill buttons under the table: "🎵 Audio" / "🎬 Video" (url tg-buttons
+#     that deep-link to the bot; handled in dlbuttons.py v3). Premium emojis via
+#     render_custom_emojis. Falls back automatically (no pills -> plain table).
+#   - Table labels in English with emoji glyphs (🔗 Title, ⏱ Duration, 👤 Requested By).
+#   - New vidid param (auto-read from the info link if not passed).
+#   - SHOW_KB_DL_ROW flag for the inline-keyboard Audio/Video row.
+# CHANGELOG (v11 -> v12):
+#   - Play card pe "🎵 Audio / 🎬 Video" download row (_with_dl_row). Rich aur
+#     plain fallback dono card me. Handler: plugins/play/dlbuttons.py (new).
+#   - Skip/callback cards bhi rich_now_playing se jate hain, to unme bhi aati hai.
 # CHANGELOG (v10 -> v11):
 #   - FIX RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND: image URL candidates ab chain
 #     me try hote hain: direct/temp-upload URL -> normalized YouTube
@@ -50,7 +63,7 @@ from html import unescape as _html_unescape
 from random import randint
 from typing import Union
 
-from pyrogram.types import InlineKeyboardMarkup
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 import config
 from RishuMusic import Carbon, YouTube, app
@@ -195,9 +208,71 @@ def _norm_yt(url):
     return _rich_src(None, url)
 
 
+# v13: Audio/Video download buttons are shown in TWO places:
+#   1) rich pills inside the card body, under the table (URL deep-links)
+#   2) a normal inline-keyboard row under the message (callback, in-place)
+# If the rich pills render fine on your client, set this to False to hide row 2.
+SHOW_KB_DL_ROW = True
+
+
+# v13 NEW: rich pill buttons (type="url" is the only tg-button type that works;
+# callback_data tg-buttons gave BUTTON_DATA_INVALID). They deep-link to the bot:
+#   t.me/<bot>?start=dla_<id>  (audio)   /   t.me/<bot>?start=dlv_<id>  (video)
+# and plugins/play/dlbuttons.py answers that /start payload in the user's DM.
+def _pill(text: str, url: str, style: str) -> str:
+    return (
+        f'<tg-button type="url" style="{style}" '
+        f'url="{_html_escape(url, quote=True)}">{text}</tg-button>'
+    )
+
+
+def _dl_pills(vidid) -> str:
+    uname = getattr(app, "username", None)
+    if not (uname and vidid):
+        return ""
+    return (
+        "<p>"
+        + _pill("🎵 Audio", f"https://t.me/{uname}?start=dla_{vidid}", "primary")
+        + " "
+        + _pill("🎬 Video", f"https://t.me/{uname}?start=dlv_{vidid}", "success")
+        + "</p>"
+    )
+
+
+# v12 NEW: play card ke neeche "Audio / Video" download row.
+# chat_id (db key) existing stream_markup ke "ADMIN <cmd>|<chat_id>" button se nikalte
+# hain, isliye cplay (channel) me bhi sahi key milti hai.
+def _with_dl_row(markup):
+    if not SHOW_KB_DL_ROW:
+        return markup
+    try:
+        rows = [list(r) for r in markup.inline_keyboard]
+        chat = None
+        for r in rows:
+            for b in r:
+                d = getattr(b, "callback_data", None)
+                if isinstance(d, bytes):
+                    d = d.decode("utf-8", "ignore")
+                if isinstance(d, str) and d.startswith("DL"):
+                    return markup  # already added
+                if chat is None and isinstance(d, str) and d.startswith("ADMIN") and "|" in d:
+                    chat = d.split("|", 1)[1].split("_")[0].strip()
+        if not chat:
+            return markup
+        rows.append(
+            [
+                InlineKeyboardButton("🎵 Audio", callback_data=f"DLAUDIO {chat}"),
+                InlineKeyboardButton("🎬 Video", callback_data=f"DLVIDEO {chat}"),
+            ]
+        )
+        return InlineKeyboardMarkup(rows)
+    except Exception:
+        return markup
+
+
 async def _rich_photo_card(
     chat_id, img, markup, plain_cap, *, title=None, duration_min=None,
-    user_name=None, link=None, extra_rows=None, rich_img_url=None,
+    user_name=None, link=None, extra_rows=None, rich_img_url=None, vidid=None,
 ):
     """Send the 'Now Streaming' card as a real Bot API 10.2+ Rich Message:
     thumbnail + a genuine HTML ``<table>`` inside a <details> dropdown (v2).
@@ -211,6 +286,10 @@ async def _rich_photo_card(
     table, or leave them unset to fall back to plain_cap even in the rich
     path (used for cards that have no song info, e.g. the index/m3u8 card).
     """
+    markup = _with_dl_row(markup)  # v12
+    if not vidid:  # v13: YouTube cards always carry ...?start=info_<id> as link
+        _m = re.search(r"start=info_([\w-]{11})", str(link or ""))
+        vidid = _m.group(1) if _m else None
     # v11: ek se zyada image URL candidates (label, url); jo Telegram accept kare
     srcs = []
     if RICH_AVAILABLE and title is not None:
@@ -233,24 +312,25 @@ async def _rich_photo_card(
         title_cell = rich_esc(title)
         if link:
             title_cell = f'<a href="{rich_esc(link)}">{title_cell}</a>'
-        rows.append(("ᴛɪᴛʟᴇ", title_cell))
+        rows.append(("🔗 Title", title_cell))
         if duration_min is not None:
-            rows.append(("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(duration_min)} ᴍɪɴᴜᴛᴇs"))
+            rows.append(("⏱ Duration", f"{rich_esc(duration_min)} min"))
         if user_name is not None:
-            rows.append(("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", f"<b>{rich_esc(_plain_name(user_name))}</b>"))
+            rows.append(("👤 Requested By", f"<b>{rich_esc(_plain_name(user_name))}</b>"))
         if extra_rows:
             rows.extend(extra_rows)
         table = rich_kv_table(rows)
         for label, src in srcs:
             head = rich_img(src) + "\n<b>❖ Mᴜsɪᴄ Oɴ Sᴛʀᴇᴀᴍɪɴɢ ⏤●</b>\n"
-            attempts = (
-                ("details+emoji-render",
-                 render_custom_emojis(head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
-                ("details-no-render",
-                 head + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)),
-                ("plain-table",
-                 render_custom_emojis(head + table)),
-            )
+            # v13: big "Track Info" heading, table always visible, pills under it
+            core = head + "<h1>🎵 Track Info</h1>" + table
+            pills = _dl_pills(vidid)
+            attempts = []
+            if pills:
+                attempts.append(("pills+emoji-render", render_custom_emojis(core + pills)))
+                attempts.append(("pills-no-render", core + pills))
+            attempts.append(("heading+emoji-render", render_custom_emojis(core)))
+            attempts.append(("plain-table", render_custom_emojis(head + table)))
             for name, body in attempts:
                 try:
                     return await app.send_rich_message(

@@ -1,5 +1,10 @@
 # ============================================================
-# stream.py — v14
+# stream.py — v15
+# CHANGELOG (v14 -> v15):
+#   - FIX callback pills: attribute is data="..." (not callback_data="...") and the
+#     two buttons are wrapped in <tg-button-row>, exactly like the richgram README
+#     (github.com/Badmunda05/richgram). That wrong attribute was why Telegram
+#     answered BUTTON_DATA_INVALID. Url-pill fallback is unchanged.
 # CHANGELOG (v13 -> v14):
 #   - Rich pills are now CALLBACK buttons (same "DLAUDIO/DLVIDEO <chat_id>" data
 #     as the inline row -> in-place download, no DM deep-link needed).
@@ -244,11 +249,10 @@ def _dl_pills(vidid, chat=None, mode="url") -> str:
         if not chat:
             return ""
         return (
-            "<p>"
+            "<tg-button-row>"
             + _pill_cb("🎵 Audio", f"DLAUDIO {chat}", "primary")
-            + " "
             + _pill_cb("🎬 Video", f"DLVIDEO {chat}", "success")
-            + "</p>"
+            + "</tg-button-row>"
         )
     if not uname:
         return ""
@@ -263,12 +267,13 @@ def _dl_pills(vidid, chat=None, mode="url") -> str:
 
 # v14 NEW: callback-type rich pill. Same callback data as the inline row
 # ("DLAUDIO <chat_id>" / "DLVIDEO <chat_id>"), so dlbuttons.py needs no change.
-# NOTE: this tag gave BUTTON_DATA_INVALID in start.py before, so it is tried
-# first and the card falls back to url pills automatically if Telegram rejects it.
+# FIX (v15): the attribute is data="..." (richgram README), NOT callback_data="...".
+# The wrong name was the cause of the old BUTTON_DATA_INVALID. Still safe: if Telegram
+# rejects it anyway, the card falls back to url pills automatically.
 def _pill_cb(text: str, data: str, style: str) -> str:
     return (
         f'<tg-button type="callback_data" style="{style}" '
-        f'callback_data="{_html_escape(data, quote=True)}">{text}</tg-button>'
+        f'data="{_html_escape(data, quote=True)}">{text}</tg-button>'
     )
 
 

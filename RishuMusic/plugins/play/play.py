@@ -1,5 +1,8 @@
 # ============================================================
-# play.py — v5
+# play.py — v6
+# CHANGELOG (v5 -> v6):
+#   - "Track Info" is a big <h1> heading, table always visible (no dropdown).
+#   - Table labels in English + emoji glyphs (premium via render_custom_emojis).
 # CHANGELOG (v4 -> v5):
 #   - Error ab OWNER_ID ke DM me aata hai (fail ho to LOGGER_ID fallback).
 # CHANGELOG (v3 -> v4):
@@ -52,11 +55,11 @@ from config import BANNED_USERS, lyrical
 
 
 _PLATFORM_LABELS = {
-    "yt": "YᴏᴜTᴜʙᴇ Pʟᴀʏʟɪsᴛ",
-    "spplay": "Spᴏᴛɪғʏ Pʟᴀʏʟɪsᴛ",
-    "spalbum": "Spᴏᴛɪғʏ Aʟʙᴜᴍ",
-    "spartist": "Spᴏᴛɪғʏ Aʀᴛɪsᴛ",
-    "apple": "Aᴘᴘʟᴇ Mᴜsɪᴄ Pʟᴀʏʟɪsᴛ",
+    "yt": "YouTube Playlist",
+    "spplay": "Spotify Playlist",
+    "spalbum": "Spotify Album",
+    "spartist": "Spotify Artist",
+    "apple": "Apple Music Playlist",
 }
 
 
@@ -82,9 +85,10 @@ async def _report_rich_error(where: str, name: str, ex) -> None:
 
 
 # v4 (v3 se same, emoji default empty)
-def _rich_details(title: str, table: str, emoji: str = "") -> str:
+def _rich_details(title: str, table: str, emoji: str = "🎵") -> str:
+    # v6: big heading + always-visible table (no collapsed dropdown anymore)
     lead = f"{emoji} " if emoji else ""
-    return f"<details><summary>{lead}<b>{title}</b></summary>{table}</details>"
+    return f"<h1>{lead}{title}</h1>{table}"
 
 
 async def _rich_card(
@@ -117,9 +121,9 @@ async def _rich_card(
         attempts = (
             ("details+emoji-render",
              render_custom_emojis(
-                 rich_img(img) + "\n" + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table))),
+                 rich_img(img) + "\n" + _rich_details("Track Info", table))),
             ("details-no-render",
-             rich_img(img) + "\n" + _rich_details("ᴛʀᴀᴄᴋ ɪɴғᴏ", table)),
+             rich_img(img) + "\n" + _rich_details("Track Info", table)),
             ("plain-table",
              render_custom_emojis(rich_img(img) + "\n" + table)),
         )
@@ -520,8 +524,8 @@ async def play_commnd(
                 "f" if fplay else "d",
             )
             rows = [
-                ("ᴘʟᴀʏʟɪsᴛ", _PLATFORM_LABELS.get(plist_type, rich_esc(plist_type))),
-                ("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(message.from_user.first_name)),
+                ("📋 Playlist", _PLATFORM_LABELS.get(plist_type, rich_esc(plist_type))),
+                ("👤 Requested By", rich_esc(message.from_user.first_name)),
             ]
             await _rich_card(mystic, message, img, cap, buttons, rows=rows)
             return await play_logs(message, streamtype=f"Playlist : {plist_type}")
@@ -541,9 +545,9 @@ async def play_commnd(
                     details["duration_min"],
                 )
                 rows = [
-                    ("ᴛɪᴛʟᴇ", rich_esc(details["title"].title())),
-                    ("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(details['duration_min'])} ᴍɪɴᴜᴛᴇs"),
-                    ("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(message.from_user.first_name)),
+                    ("🔗 Title", rich_esc(details["title"].title())),
+                    ("⏱ Duration", f"{rich_esc(details['duration_min'])} min"),
+                    ("👤 Requested By", rich_esc(message.from_user.first_name)),
                 ]
                 await _rich_card(mystic, message, details["thumb"], cap, buttons, rows=rows)
                 return await play_logs(message, streamtype=f"Searched on Youtube")
@@ -556,9 +560,9 @@ async def play_commnd(
                     "f" if fplay else "d",
                 )
                 rows = [
-                    ("ᴛɪᴛʟᴇ", rich_esc(details["title"])),
-                    ("ᴅᴜʀᴀᴛɪᴏɴ", f"{rich_esc(details['duration_min'])} ᴍɪɴᴜᴛᴇs"),
-                    ("ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ", rich_esc(message.from_user.first_name)),
+                    ("🔗 Title", rich_esc(details["title"])),
+                    ("⏱ Duration", f"{rich_esc(details['duration_min'])} min"),
+                    ("👤 Requested By", rich_esc(message.from_user.first_name)),
                 ]
                 await _rich_card(mystic, message, img, cap, buttons, rows=rows)
                 return await play_logs(message, streamtype=f"URL Searched Inline")

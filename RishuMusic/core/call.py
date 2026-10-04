@@ -55,6 +55,28 @@ autoend = {}
 counter = {}
 
 
+# autoplay v12 NEW: natural-next / autoplay card ab /play jaisa rich card (stream.py ka rich_now_playing).
+# Lazy import: stream.py khud core.call import karta hai (circular se bachne ke liye).
+async def _rich_card(chat_id, img, button, plain_cap, title, dur, user, link, vidid=None):
+    markup = InlineKeyboardMarkup(button)
+    try:
+        from RishuMusic.utils.stream.stream import rich_now_playing
+
+        return await rich_now_playing(
+            chat_id,
+            img,
+            markup,
+            plain_cap,
+            title=str(title)[:23],
+            duration_min=dur,
+            user_name=user,
+            link=link,
+            vidid=vidid,
+        )
+    except Exception:
+        return await app.send_photo(chat_id=chat_id, photo=img, caption=plain_cap, reply_markup=markup)
+
+
 async def _clear_(chat_id: int):
     autoplay_clear(chat_id)  # autoplay v3
     db[chat_id] = []
@@ -422,17 +444,21 @@ class Call(PyTgCalls):
                 )
             img = await get_thumb(videoid, check[0]["user_id"])
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
-                chat_id=original_chat_id,
-                photo=img,
-                has_spoiler=True,
-                caption=_["stream_1"].format(
+            run = await _rich_card(  # v12
+                original_chat_id,
+                img,
+                button,
+                _["stream_1"].format(
                     f"https://t.me/{app.username}?start=info_{videoid}",
                     title[:23],
                     check[0]["dur"],
                     user,
                 ),
-                reply_markup=InlineKeyboardMarkup(button),
+                title,
+                check[0]["dur"],
+                user,
+                f"https://t.me/{app.username}?start=info_{videoid}",
+                vidid=videoid,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -460,17 +486,21 @@ class Call(PyTgCalls):
             img = await get_thumb(videoid, check[0]["user_id"])
             button = stream_markup(_, chat_id)
             await mystic.delete()
-            run = await app.send_photo(
-                chat_id=original_chat_id,
-                photo=img,
-                has_spoiler=True,
-                caption=_["stream_1"].format(
+            run = await _rich_card(  # v12
+                original_chat_id,
+                img,
+                button,
+                _["stream_1"].format(
                     f"https://t.me/{app.username}?start=info_{videoid}",
                     title[:23],
                     check[0]["dur"],
                     user,
                 ),
-                reply_markup=InlineKeyboardMarkup(button),
+                title,
+                check[0]["dur"],
+                user,
+                f"https://t.me/{app.username}?start=info_{videoid}",
+                vidid=videoid,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
@@ -485,12 +515,15 @@ class Call(PyTgCalls):
                     text=_["call_6"],
                 )
             button = stream_markup(_, chat_id)
-            run = await app.send_photo(
-                chat_id=original_chat_id,
-                photo=config.STREAM_IMG_URL,
-                has_spoiler=True,
-                caption=_["stream_2"].format(user),
-                reply_markup=InlineKeyboardMarkup(button),
+            run = await _rich_card(  # v12
+                original_chat_id,
+                config.STREAM_IMG_URL,
+                button,
+                _["stream_2"].format(user),
+                title,
+                None,
+                user,
+                None,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -505,46 +538,58 @@ class Call(PyTgCalls):
                 )
             if videoid == "telegram":
                 button = stream_markup(_, chat_id)
-                run = await app.send_photo(
-                    chat_id=original_chat_id,
-                    photo=(
+                run = await _rich_card(  # v12
+                    original_chat_id,
+                    (
                         config.TELEGRAM_AUDIO_URL
                         if str(streamtype) == "audio"
                         else config.TELEGRAM_VIDEO_URL
                     ),
-                    caption=_["stream_1"].format(
+                    button,
+                    _["stream_1"].format(
                         config.SUPPORT_CHAT, title[:23], check[0]["dur"], user
                     ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                    title,
+                    check[0]["dur"],
+                    user,
+                    config.SUPPORT_CHAT,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
             elif videoid == "soundcloud":
                 button = stream_markup(_, chat_id)
-                run = await app.send_photo(
-                    chat_id=original_chat_id,
-                    photo=config.SOUNCLOUD_IMG_URL,
-                    caption=_["stream_1"].format(
+                run = await _rich_card(  # v12
+                    original_chat_id,
+                    config.SOUNCLOUD_IMG_URL,
+                    button,
+                    _["stream_1"].format(
                         config.SUPPORT_CHAT, title[:23], check[0]["dur"], user
                     ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                    title,
+                    check[0]["dur"],
+                    user,
+                    config.SUPPORT_CHAT,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
             else:
                 img = await get_thumb(videoid, check[0]["user_id"])
                 button = stream_markup(_, chat_id)
-                run = await app.send_photo(
-                    chat_id=original_chat_id,
-                    photo=img,
-                    has_spoiler=True,
-                    caption=_["stream_1"].format(
+                run = await _rich_card(  # v12  <- autoplay / natural-next ka main path
+                    original_chat_id,
+                    img,
+                    button,
+                    _["stream_1"].format(
                         f"https://t.me/{app.username}?start=info_{videoid}",
                         title[:23],
                         check[0]["dur"],
                         user,
                     ),
-                    reply_markup=InlineKeyboardMarkup(button),
+                    title,
+                    check[0]["dur"],
+                    user,
+                    f"https://t.me/{app.username}?start=info_{videoid}",
+                    vidid=videoid,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"

@@ -1,5 +1,9 @@
 # ============================================================
-# callback.py — v4   (v1 = your original file)
+# callback.py — v5   (v1 = your original file)
+# CHANGELOG (v4 -> v5):
+#   - markup_timer: the 7s keyboard refresh also swaps YT-API for the Autoplay
+#     ON/OFF toggle and colours the buttons (else it would undo them).
+#     (autoplay import is unchanged: enqueue_next already respects the toggle.)
 # CHANGELOG (v3 -> v4):
 #   - Button labels in English; row respects SHOW_KB_DL_ROW (from stream.py).
 # CHANGELOG (v2 -> v3):
@@ -24,6 +28,7 @@ from RishuMusic import YouTube, app
 from RishuMusic.core.call import shree
 from RishuMusic.misc import SUDOERS, db
 from RishuMusic.utils.autoplay import enqueue_next as autoplay_next  # autoplay v3
+from RishuMusic.utils.play_buttons import decorate_markup  # v5
 from RishuMusic.utils.database import (
     get_active_chats,
     get_lang,
@@ -435,6 +440,10 @@ async def markup_timer():
                     # v3: timer har 7s me markup replace karta hai, isliye
                     # download row yahan bhi jodni zaroori hai (warna gayab ho jati)
                     buttons = list(buttons) + _dl_rows(chat_id, playing[0])
+                    # v5: YT-API -> Autoplay toggle + colours (same as the card itself)
+                    buttons = (
+                        await decorate_markup(InlineKeyboardMarkup(buttons), chat_id)
+                    ).inline_keyboard
                     await mystic.edit_reply_markup(
                         reply_markup=InlineKeyboardMarkup(buttons)
                     )

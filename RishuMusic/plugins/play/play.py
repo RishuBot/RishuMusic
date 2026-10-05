@@ -1,5 +1,9 @@
 # ============================================================
-# play.py — v6
+# play.py — v7
+# CHANGELOG (v6 -> v7):
+#   - Coloured inline buttons on the pre-play card, slider and the other menus
+#     (6 places, pb.paint_markup). If Telegram rejects a style, it retries
+#     without colours.
 # CHANGELOG (v5 -> v6):
 #   - "Track Info" is a big <h1> heading, table always visible (no dropdown).
 #   - Table labels in English + emoji glyphs (premium via render_custom_emojis).
@@ -42,6 +46,7 @@ from RishuMusic.utils.inline import (
     track_markup,
 )
 from RishuMusic.utils.logger import play_logs
+from RishuMusic.utils import play_buttons as pb  # v7
 from RishuMusic.utils.premium_emojis import render_custom_emojis
 from RishuMusic.utils.rich_ui import (
     RICH_AVAILABLE,
@@ -112,7 +117,7 @@ async def _rich_card(
          text), in-place edit.
       3. delete + reply_photo: last resort if even #2 fails.
     """
-    markup = InlineKeyboardMarkup(buttons)
+    markup = pb.paint_markup(InlineKeyboardMarkup(buttons))  # v7: coloured
 
     if not RICH_AVAILABLE:
         await _report_rich_error("play._rich_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
@@ -140,6 +145,10 @@ async def _rich_card(
             except Exception as ex:
                 traceback.print_exc()
                 await _report_rich_error("play._rich_card", name, ex)
+                # v7: Telegram rejected a button style -> retry without colours
+                if "STYLE" in str(ex).upper() and not pb.STYLE_BAD:
+                    pb.STYLE_BAD = True
+                    markup = InlineKeyboardMarkup(buttons)
 
     cap = render_custom_emojis(cap)
     try:
@@ -454,7 +463,7 @@ async def play_commnd(
             buttons = botplaylist_markup(_)
             return await mystic.edit_text(
                 _["play_18"],
-                reply_markup=InlineKeyboardMarkup(buttons),
+                reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons)),
             )
         slider = True
         query = message.text.split(None, 1)[1]
@@ -484,7 +493,7 @@ async def play_commnd(
                 )
                 return await mystic.edit_text(
                     _["play_13"],
-                    reply_markup=InlineKeyboardMarkup(buttons),
+                    reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons)),
                 )
         try:
             await stream(
@@ -613,7 +622,7 @@ async def play_music(client, CallbackQuery, _):
         )
         return await mystic.edit_text(
             _["play_13"],
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons)),
         )
     video = True if mode == "v" else None
     ffplay = True if fplay == "f" else None
@@ -774,7 +783,7 @@ async def slider_queries(client, CallbackQuery, _):
             ),
         )
         return await CallbackQuery.edit_message_media(
-            media=med, reply_markup=InlineKeyboardMarkup(buttons)
+            media=med, reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons))
         )
     if what == "B":
         if rtype == 0:
@@ -795,5 +804,5 @@ async def slider_queries(client, CallbackQuery, _):
             ),
         )
         return await CallbackQuery.edit_message_media(
-            media=med, reply_markup=InlineKeyboardMarkup(buttons)
+            media=med, reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons))
         )

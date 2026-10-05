@@ -1,5 +1,12 @@
-
-
+# ============================================================
+# stream.py — v17   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# CHANGELOG (v15 -> v17):
+#   - v16: play card keyboard: YT-API button -> "Autoplay: ON/OFF" toggle + all
+#     buttons coloured (utils/play_buttons.py). If Telegram rejects a style the
+#     card is resent without colours.
+#   - v17: "added to queue" messages and the index card get coloured buttons too
+#     (5 places).
+# ============================================================
 import os
 import re
 import traceback
@@ -22,6 +29,7 @@ from RishuMusic.utils.inline import aq_markup, close_markup, stream_markup
 
 # v6
 from RishuMusic.utils.pastebin import ShreeBin as shreeBin
+from RishuMusic.utils import play_buttons as pb  # v17
 from RishuMusic.utils.premium_emojis import render_custom_emojis
 from RishuMusic.utils.rich_ui import (
     RICH_AVAILABLE,
@@ -277,7 +285,9 @@ async def _rich_photo_card(
     path (used for cards that have no song info, e.g. the index/m3u8 card).
     """
     global _CB_BAD
-    markup = _with_dl_row(markup)  # v12
+    plain_markup = _with_dl_row(markup)  # v12
+    # v17: YT-API button -> Autoplay ON/OFF toggle, and coloured inline buttons
+    markup = await pb.decorate_markup(plain_markup)
     if not vidid:  # v13: YouTube cards always carry ...?start=info_<id> as link
         _m = re.search(r"start=info_([\w-]{11})", str(link or ""))
         vidid = _m.group(1) if _m else None
@@ -345,6 +355,10 @@ async def _rich_photo_card(
                     # v14: Telegram rejected callback pills -> stop trying them
                     if name.startswith("cb-") and "BUTTON" in str(ex).upper():
                         _CB_BAD = True
+                    # v17: Telegram rejected a button style -> resend without colours
+                    if "STYLE" in str(ex).upper() and not pb.STYLE_BAD:
+                        pb.STYLE_BAD = True
+                        markup = await pb.decorate_markup(plain_markup, colors=False)
                     # v11: error me image URL bhi (label se dedupe, URL text me)
                     await _report_rich_error(
                         "stream._rich_photo_card",
@@ -509,7 +523,7 @@ async def stream(
             await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
             )
         else:
             if not forceplay:
@@ -570,7 +584,7 @@ async def stream(
             await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
             )
         else:
             if not forceplay:
@@ -626,7 +640,7 @@ async def stream(
             await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
             )
         else:
             if not forceplay:
@@ -683,7 +697,7 @@ async def stream(
             await app.send_message(
                 chat_id=original_chat_id,
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
             )
         else:
             if not forceplay:
@@ -745,7 +759,7 @@ async def stream(
             button = aq_markup(_, chat_id)
             await mystic.edit_text(
                 text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=InlineKeyboardMarkup(button),
+                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
             )
         else:
             if not forceplay:

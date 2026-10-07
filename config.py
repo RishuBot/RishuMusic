@@ -44,7 +44,7 @@ AI_AUTOPLAY      = getenv("AI_AUTOPLAY", "1")
 
 UPSTREAM_REPO = getenv(
     "UPSTREAM_REPO",
-    "https://github.com/shreeBot/shreeMusic",
+    "https://github.com/RishuBot/RishuMusic",
 )
 UPSTREAM_BRANCH = getenv("UPSTREAM_BRANCH", "main")
 GIT_TOKEN = getenv(

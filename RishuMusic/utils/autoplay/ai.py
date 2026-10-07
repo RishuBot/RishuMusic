@@ -1,5 +1,5 @@
 # ============================================================
-# RishuMusic/utils/autoplay/ai.py — v1  (NEW FILE)
+# RishuMusic/utils/autoplay/ai.py — v2
 #
 # AI picks 5 songs related to the one that is playing. It only returns NAMES
 # ("Song - Artist"); related.py then searches each name on YouTube and the
@@ -7,17 +7,18 @@
 # So the AI can never break playback: if every AI provider fails, related.py
 # silently uses the old method (YouTube search + YouTube Mix).
 #
-# Providers are tried in this order (a provider with no key is skipped):
-#   1) Gemini   - env GEMINI_API_KEY   (free key: aistudio.google.com)
-#   2) Groq     - env GROQ_API_KEY     (free key: console.groq.com)
-#   3) Pollinations - no key needed (anonymous, rate limited, least stable)
-# A provider that fails (HTTP error / 429 / timeout) is benched for 90 s, so a
-# dead or rate-limited provider never slows the next songs down.
+# v2: keys/settings are now imported from config.py (fallback: os.environ).
+#     config.py me ye add kar do (sab optional):
+#         GEMINI_API_KEY   = getenv("GEMINI_API_KEY", "")
+#         GEMINI_MODEL     = getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+#         GROQ_API_KEY     = getenv("GROQ_API_KEY", "")
+#         GROQ_MODELS      = getenv("GROQ_MODELS", "llama-3.1-8b-instant,openai/gpt-oss-20b")
+#         POLLINATIONS_KEY = getenv("POLLINATIONS_KEY", "")
+#         AI_AUTOPLAY      = getenv("AI_AUTOPLAY", "1")
 #
-# Optional env:  GEMINI_MODEL (default gemini-2.5-flash-lite)
-#                GROQ_MODELS  (comma list, default llama-3.1-8b-instant,openai/gpt-oss-20b)
-#                POLLINATIONS_KEY, AI_AUTOPLAY=0 (turn the AI part off)
-# Free-tier models/limits change often - if one is retired just change the env var.
+# Providers order (provider with no key is skipped):
+#   1) Gemini  2) Groq  3) Pollinations (no key needed)
+# A failing provider is benched for 90 s.
 # ============================================================
 
 import asyncio
@@ -29,21 +30,35 @@ from urllib.parse import quote
 
 import aiohttp
 
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
-GEMINI_URL = os.environ.get(
+try:
+    import config as _config
+except Exception:  # config missing / broken -> fall back to env only
+    _config = None
+
+
+def _cfg(name: str, default: str = "") -> str:
+    """config.py value first, then environment, then default."""
+    val = getattr(_config, name, None) if _config else None
+    if val is None or str(val).strip() == "":
+        val = os.environ.get(name, default)
+    return str(val).strip()
+
+
+GEMINI_KEY = _cfg("GEMINI_API_KEY")
+GEMINI_MODEL = _cfg("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GEMINI_URL = _cfg(
     "GEMINI_URL", "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
-GROQ_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+GROQ_KEY = _cfg("GROQ_API_KEY")
 GROQ_MODELS = [
     m.strip()
-    for m in os.environ.get("GROQ_MODELS", "llama-3.1-8b-instant,openai/gpt-oss-20b").split(",")
+    for m in _cfg("GROQ_MODELS", "llama-3.1-8b-instant,openai/gpt-oss-20b").split(",")
     if m.strip()
 ]
-GROQ_URL = os.environ.get("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
-POLL_KEY = os.environ.get("POLLINATIONS_KEY", "").strip()
-POLL_URL = os.environ.get("POLLINATIONS_URL", "https://gen.pollinations.ai/text/")
-ENABLED = os.environ.get("AI_AUTOPLAY", "1") != "0"
+GROQ_URL = _cfg("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
+POLL_KEY = _cfg("POLLINATIONS_KEY")
+POLL_URL = _cfg("POLLINATIONS_URL", "https://gen.pollinations.ai/text/")
+ENABLED = _cfg("AI_AUTOPLAY", "1") != "0"
 
 COUNT = 5
 TIMEOUT = 12  # seconds per provider

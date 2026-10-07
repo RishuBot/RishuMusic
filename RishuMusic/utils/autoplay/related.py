@@ -1,7 +1,10 @@
+# autoplay v5 (CHANGED) - AI suggests the first 5 related songs (utils/autoplay/ai.py); old search + YouTube Mix fill the rest / act as fallback
 # autoplay v4 (CHANGED) - related songs ab song ke NAAM se check hote hain
 import asyncio
 import re
 import yt_dlp
+
+from .ai import ai_related  # v5
 
 _JUNK = re.compile(
     r"\(.*?\)|\[.*?\]|\|.*|\b(official|video|audio|lyrics?|lyrical|full song|hd|4k|"
@@ -44,6 +47,21 @@ def _extract(url):
         return y.extract_info(url, download=False)
 
 
+def _search_one(name):
+    """v5: top YouTube results for one AI-suggested song name."""
+    return _extract(f"ytsearch3:{name}")
+
+
+def _usable(e, vidid, picked):
+    """Entry passes the same filters the old code used (not current song, not a duplicate, sane length)."""
+    if not e or not e.get("id") or e["id"] == vidid:
+        return False
+    if any(similar(tokens(e.get("title") or ""), p) for p in picked):
+        return False
+    d = e.get("duration") or 0
+    return not (d and (d < 60 or d > 720))
+
+
 async def fetch_related(vidid, title):
     loop = asyncio.get_running_loop()
     name = clean_name(title)
@@ -53,6 +71,29 @@ async def fetch_related(vidid, title):
     )
     me = tokens(title)
     out, picked = [], [me]
+
+    # v5: AI suggests 5 related song NAMES -> each is searched on YouTube and goes to the FRONT
+    # of the list (prefetch downloads in this order). If AI or the search fails, nothing is lost:
+    # the old sources below still fill the list exactly like before.
+    try:
+        names = await ai_related(title)
+        found = await asyncio.gather(
+            *[loop.run_in_executor(None, _search_one, n) for n in names],
+            return_exceptions=True,
+        )
+        for info in found:
+            if isinstance(info, Exception):
+                continue
+            for e in (info or {}).get("entries") or []:
+                if _usable(e, vidid, picked):
+                    picked.append(tokens(e.get("title") or ""))
+                    out.append({"vidid": e["id"], "title": e.get("title") or "Unknown",
+                                "duration": e.get("duration") or 0})
+                    break  # one result per suggested name
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        pass
     for url in sources:
         try:
             info = await loop.run_in_executor(None, _extract, url)

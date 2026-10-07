@@ -57,7 +57,7 @@ counter = {}
 
 # autoplay v12 NEW: natural-next / autoplay card ab /play jaisa rich card (stream.py ka rich_now_playing).
 # Lazy import: stream.py khud core.call import karta hai (circular se bachne ke liye).
-async def _rich_card(chat_id, img, button, plain_cap, title, dur, user, link, vidid=None):
+async def _rich_card(chat_id, img, button, plain_cap, title, dur, user, link, vidid=None, streamtype=None):
     markup = InlineKeyboardMarkup(button)
     try:
         from RishuMusic.utils.stream.stream import rich_now_playing
@@ -72,6 +72,7 @@ async def _rich_card(chat_id, img, button, plain_cap, title, dur, user, link, vi
             user_name=user,
             link=link,
             vidid=vidid,
+            extra_rows=[("🎧 Mode", "Video" if str(streamtype) == "video" else "Audio")],  # Mode row
         )
     except Exception:
         return await app.send_photo(chat_id=chat_id, photo=img, caption=plain_cap, reply_markup=markup)
@@ -459,6 +460,7 @@ class Call(PyTgCalls):
                 user,
                 f"https://t.me/{app.username}?start=info_{videoid}",
                 vidid=videoid,
+                streamtype=streamtype,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -501,6 +503,7 @@ class Call(PyTgCalls):
                 user,
                 f"https://t.me/{app.username}?start=info_{videoid}",
                 vidid=videoid,
+                streamtype=streamtype,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
@@ -524,6 +527,7 @@ class Call(PyTgCalls):
                 None,
                 user,
                 None,
+                streamtype=streamtype,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -553,6 +557,7 @@ class Call(PyTgCalls):
                     check[0]["dur"],
                     user,
                     config.SUPPORT_CHAT,
+                    streamtype=streamtype,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
@@ -569,6 +574,7 @@ class Call(PyTgCalls):
                     check[0]["dur"],
                     user,
                     config.SUPPORT_CHAT,
+                    streamtype=streamtype,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "tg"
@@ -590,6 +596,7 @@ class Call(PyTgCalls):
                     user,
                     f"https://t.me/{app.username}?start=info_{videoid}",
                     vidid=videoid,
+                    streamtype=streamtype,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"
@@ -649,6 +656,6 @@ class Call(PyTgCalls):
 shree = Call()
 
 
-#shree = Shree
+
 
 

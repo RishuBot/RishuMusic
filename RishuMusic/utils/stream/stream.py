@@ -1,5 +1,8 @@
 # ============================================================
-# stream.py — v17   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# stream.py — v18   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# CHANGELOG (v17 -> v18):
+#   - Track Info table has a new "🎧 Mode" row: Video when a video is streaming
+#     in the voice chat, otherwise Audio.
 # CHANGELOG (v15 -> v17):
 #   - v16: play card keyboard: YT-API button -> "Autoplay: ON/OFF" toggle + all
 #     buttons coloured (utils/play_buttons.py). If Telegram rejects a style the
@@ -393,6 +396,8 @@ async def stream(
 ):
     if not result:
         return
+    # v18: Mode row for the Track Info table (Video when a video is streaming in the VC)
+    _mode = [("🎧 Mode", "Video" if video else "Audio")]
     if forceplay:
         await shree.force_stop_stream(chat_id)
     if streamtype == "playlist":
@@ -473,6 +478,7 @@ async def stream(
                     user_name=user_name,
                     link=link,
                     rich_img_url=thumbnail,
+                    extra_rows=_mode,
                 )
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"
@@ -560,6 +566,7 @@ async def stream(
                 user_name=user_name,
                 link=link,
                 rich_img_url=thumbnail,
+                extra_rows=_mode,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
@@ -614,6 +621,7 @@ async def stream(
                 duration_min=duration_min,
                 user_name=user_name,
                 link=config.SUPPORT_CHAT,
+                extra_rows=_mode,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -670,6 +678,7 @@ async def stream(
                 duration_min=duration_min,
                 user_name=user_name,
                 link=link,
+                extra_rows=_mode,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -737,6 +746,7 @@ async def stream(
                 user_name=user_name,
                 link=live_link,
                 rich_img_url=thumbnail,
+                extra_rows=_mode,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -789,6 +799,7 @@ async def stream(
                 _["stream_2"].format(user_name),
                 title=title,
                 user_name=user_name,
+                extra_rows=_mode,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"

@@ -1,5 +1,5 @@
 # ============================================================
-# skip.py — v2   (v1 = your original file)
+# skip.py — v3   (v1 = your original file)
 # CHANGELOG (v1 -> v2):
 #   - Skip ke baad "Now Streaming" card ab rich card (thumbnail + dropdown
 #     table) hai, /play jaisa. Pehle message.reply_photo se plain caption
@@ -33,7 +33,7 @@ def _yt_thumb(videoid):
 
 # v2 NEW
 async def _card(chat_id, img, button, _, title, dur, user, link,
-                plain_cap=None, rich_img_url=None):
+                plain_cap=None, rich_img_url=None, streamtype=None):
     cap = plain_cap or _["stream_1"].format(link, title[:23], dur, user)
     return await rich_now_playing(
         chat_id,
@@ -45,6 +45,8 @@ async def _card(chat_id, img, button, _, title, dur, user, link,
         user_name=user,
         link=link,
         rich_img_url=rich_img_url,
+        # v: Mode row (Video when a video is streaming in the VC, else Audio)
+        extra_rows=[("🎧 Mode", "Video" if str(streamtype) == "video" else "Audio")],
     )
 
 
@@ -161,6 +163,7 @@ async def skip(cli, message: Message, _, chat_id):
             message.chat.id, img, button, _, title, check[0]["dur"], user,
             f"https://t.me/{app.username}?start=info_{videoid}",
             rich_img_url=_yt_thumb(videoid),
+            streamtype=streamtype,
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "tg"
@@ -190,6 +193,7 @@ async def skip(cli, message: Message, _, chat_id):
             message.chat.id, img, button, _, title, check[0]["dur"], user,
             f"https://t.me/{app.username}?start=info_{videoid}",
             rich_img_url=_yt_thumb(videoid),
+            streamtype=streamtype,
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "stream"
@@ -205,6 +209,7 @@ async def skip(cli, message: Message, _, chat_id):
             message.chat.id, config.STREAM_IMG_URL, button, _,
             "ɪɴᴅᴇx ᴏʀ ᴍ3ᴜ8 ʟɪɴᴋ", None, user, None,
             plain_cap=_["stream_2"].format(user),
+            streamtype=streamtype,
         )
         db[chat_id][0]["mystic"] = run
         db[chat_id][0]["markup"] = "tg"
@@ -231,6 +236,7 @@ async def skip(cli, message: Message, _, chat_id):
                 if str(streamtype) == "audio"
                 else config.TELEGRAM_VIDEO_URL,
                 button, _, title, check[0]["dur"], user, config.SUPPORT_CHAT,
+                streamtype=streamtype,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -243,6 +249,7 @@ async def skip(cli, message: Message, _, chat_id):
                 if str(streamtype) == "audio"
                 else config.TELEGRAM_VIDEO_URL,
                 button, _, title, check[0]["dur"], user, config.SUPPORT_CHAT,
+                streamtype=streamtype,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
@@ -254,6 +261,7 @@ async def skip(cli, message: Message, _, chat_id):
                 message.chat.id, img, button, _, title, check[0]["dur"], user,
                 f"https://t.me/{app.username}?start=info_{videoid}",
                 rich_img_url=_yt_thumb(videoid),
+                streamtype=streamtype,
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"

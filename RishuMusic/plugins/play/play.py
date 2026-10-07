@@ -1,5 +1,10 @@
 # ============================================================
-# play.py — v7
+# play.py — v8
+# CHANGELOG (v7 -> v8):
+#   - "play <query>" (and vplay / cplay / ...) works WITHOUT the slash, as long as a
+#     query follows. "/play" keeps working exactly as before.
+#   - Search-result slider (next / back buttons) edits the same rich card (thumbnail +
+#     Track Info table); before, the first tap turned it into a plain photo caption.
 # CHANGELOG (v6 -> v7):
 #   - Coloured inline buttons on the pre-play card, slider and the other menus
 #     (6 places, pb.paint_markup). If Telegram rejects a style, it retries
@@ -167,22 +172,27 @@ async def _rich_card(
     await message.reply_photo(photo=img, caption=cap, reply_markup=markup)
 
 
+# v8: "play kesariya" (no slash) works too - needs a query, so a plain "play" in normal chat
+# is ignored. Same commands, same handler (PlayWrapper reads message.command either way).
+_PLAY_CMDS = [
+    "play",
+    "vplay",
+    "cplay",
+    "cvplay",
+    "playforce",
+    "vplayforce",
+    "cplayforce",
+    "cvplayforce",
+]
+
+
 @app.on_message(
-    filters.command(
-        [
-            "play",
-            "vplay",
-            "cplay",
-            "cvplay",
-            "playforce",
-            "vplayforce",
-            "cplayforce",
-            "cvplayforce",
-        ]
-    )
+    filters.command(_PLAY_CMDS, prefixes=[""])
+    & filters.regex(r"^\S+\s+\S")
     & filters.group
     & ~BANNED_USERS
 )
+@app.on_message(filters.command(_PLAY_CMDS) & filters.group & ~BANNED_USERS)
 @PlayWrapper
 async def play_commnd(
     client,
@@ -744,6 +754,18 @@ async def play_playlists_command(client, CallbackQuery, _):
     return await mystic.delete()
 
 
+# v8 NEW: the slider (next / back through the search results) now edits the SAME rich
+# card (thumbnail + Track Info table) instead of turning it into a plain photo caption.
+async def _slider_card(cq, thumbnail, title, duration_min, buttons, _):
+    cap = _["play_10"].format(title.title(), duration_min)
+    rows = [
+        ("🔗 Title", rich_esc(title.title())),
+        ("⏱ Duration", f"{rich_esc(duration_min)} min"),
+        ("👤 Requested By", rich_esc(cq.from_user.first_name)),
+    ]
+    await _rich_card(cq.message, cq.message, thumbnail, cap, buttons, rows=rows)
+
+
 @app.on_callback_query(filters.regex("slider") & ~BANNED_USERS)
 @languageCB
 async def slider_queries(client, CallbackQuery, _):
@@ -775,16 +797,7 @@ async def slider_queries(client, CallbackQuery, _):
             pass
         title, duration_min, thumbnail, vidid = await YouTube.slider(query, query_type)
         buttons = slider_markup(_, vidid, user_id, query, query_type, cplay, fplay)
-        med = InputMediaPhoto(
-            media=thumbnail,
-            caption=_["play_10"].format(
-                title.title(),
-                duration_min,
-            ),
-        )
-        return await CallbackQuery.edit_message_media(
-            media=med, reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons))
-        )
+        return await _slider_card(CallbackQuery, thumbnail, title, duration_min, buttons, _)  # v8
     if what == "B":
         if rtype == 0:
             query_type = 9
@@ -796,13 +809,4 @@ async def slider_queries(client, CallbackQuery, _):
             pass
         title, duration_min, thumbnail, vidid = await YouTube.slider(query, query_type)
         buttons = slider_markup(_, vidid, user_id, query, query_type, cplay, fplay)
-        med = InputMediaPhoto(
-            media=thumbnail,
-            caption=_["play_10"].format(
-                title.title(),
-                duration_min,
-            ),
-        )
-        return await CallbackQuery.edit_message_media(
-            media=med, reply_markup=pb.paint_markup(InlineKeyboardMarkup(buttons))
-        )
+        return await _slider_card(CallbackQuery, thumbnail, title, duration_min, buttons, _)  # v8

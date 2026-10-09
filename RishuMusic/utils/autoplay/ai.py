@@ -1,5 +1,6 @@
 # ============================================================
-# RishuMusic/utils/autoplay/ai.py — v2
+# RishuMusic/utils/autoplay/ai.py — v3   (v3: whole AI step capped at 8 s, 6 s per provider)
+# (v2 = config.py settings)
 #
 # AI picks 5 songs related to the one that is playing. It only returns NAMES
 # ("Song - Artist"); related.py then searches each name on YouTube and the
@@ -61,7 +62,8 @@ POLL_URL = _cfg("POLLINATIONS_URL", "https://gen.pollinations.ai/text/")
 ENABLED = _cfg("AI_AUTOPLAY", "1") != "0"
 
 COUNT = 5
-TIMEOUT = 12  # seconds per provider
+TIMEOUT = 6  # seconds per provider
+DEADLINE = 8  # seconds for the WHOLE AI step (never holds autoplay back longer)
 BENCH_SECONDS = 90
 CACHE_SECONDS = 3600
 
@@ -173,14 +175,18 @@ async def ai_related(title: str):
         return list(hit[1])
 
     prompt = _prompt(title)
+    end = time.time() + DEADLINE
     async with _sem:
         timeout = aiohttp.ClientTimeout(total=TIMEOUT)
         async with aiohttp.ClientSession(timeout=timeout) as sess:
             for name, fn in _providers():
+                left = end - time.time()
+                if left <= 0.5:
+                    break  # deadline reached: related.py continues with the old method
                 if _bench_until.get(name, 0) > time.time():
                     continue
                 try:
-                    names = parse_names(await fn(sess, prompt))
+                    names = parse_names(await asyncio.wait_for(fn(sess, prompt), min(TIMEOUT, left)))
                 except asyncio.CancelledError:
                     raise
                 except Exception:

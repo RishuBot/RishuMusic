@@ -47,9 +47,17 @@ def _extract(url):
         return y.extract_info(url, download=False)
 
 
+_SEARCH_SEM = asyncio.Semaphore(2)  # v5: never run 5 yt-dlp searches at once (CPU burst slows the voice stream)
+
+
 def _search_one(name):
     """v5: top YouTube results for one AI-suggested song name."""
     return _extract(f"ytsearch3:{name}")
+
+
+async def _search_limited(loop, name):
+    async with _SEARCH_SEM:
+        return await loop.run_in_executor(None, _search_one, name)
 
 
 def _usable(e, vidid, picked):
@@ -78,7 +86,7 @@ async def fetch_related(vidid, title):
     try:
         names = await ai_related(title)
         found = await asyncio.gather(
-            *[loop.run_in_executor(None, _search_one, n) for n in names],
+            *[_search_limited(loop, n) for n in names],
             return_exceptions=True,
         )
         for info in found:

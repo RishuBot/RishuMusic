@@ -322,6 +322,24 @@ EMOJI_REGEX_STR = (
 EMOJI_REGEX = re.compile(EMOJI_REGEX_STR)
 
 
+_TOKEN_RE = re.compile(r'(<tg-emoji\b[^>]*>[\s\S]*?</tg-emoji>|```[\s\S]*?```|`[^`\n]+`|<[^>]+>)')
+_EMOJI_RE_CACHE = {}
+
+
+def _emoji_re(registry):
+    """Compiled emoji matcher, cached per registry (the registry itself is lru_cached)."""
+    key = id(registry)
+    r = _EMOJI_RE_CACHE.get(key)
+    if r is None:
+        sorted_emojis = sorted(registry.keys(), key=len, reverse=True)
+        escaped = [re.escape(e) for e in sorted_emojis]
+        pat = ('|'.join(escaped) + '|' + EMOJI_REGEX_STR) if escaped else EMOJI_REGEX_STR
+        r = re.compile(f'({pat})')
+        _EMOJI_RE_CACHE.clear()
+        _EMOJI_RE_CACHE[key] = r
+    return r
+
+
 def render_custom_emojis(text: str) -> str:
     """Replace registered emojis with <tg-emoji> tags; unregistered emoji
     are left as plain Unicode (never stripped, unlike the earlier draft of
@@ -339,15 +357,9 @@ def render_custom_emojis(text: str) -> str:
     if not registry:
         return text
 
-    # Tokenize the text using a regex that matches tags and code blocks
-    pattern = re.compile(r'(<tg-emoji\b[^>]*>[\s\S]*?</tg-emoji>|```[\s\S]*?```|`[^`\n]+`|<[^>]+>)')
-    parts = pattern.split(text)
-
-    sorted_emojis = sorted(registry.keys(), key=len, reverse=True)
-    escaped_emojis = [re.escape(e) for e in sorted_emojis]
-
-    emoji_pattern = ('|'.join(escaped_emojis) + '|' + EMOJI_REGEX_STR) if escaped_emojis else EMOJI_REGEX_STR
-    emoji_re = re.compile(f'({emoji_pattern})')
+    # v2: both regexes are built once (this runs on EVERY outgoing message and card)
+    parts = _TOKEN_RE.split(text)
+    emoji_re = _emoji_re(registry)
 
     def replace_match(match):
         em_char = match.group(1)

@@ -8,8 +8,8 @@ from pyrogram.types import Message
 from py_yt import VideosSearch, Playlist
 import aiohttp
 
-API_URL = os.environ.get("MEOW_API_URL", "https://music.yukiapi.site")
-API_KEY = os.environ.get("MEOW_API_KEY", "yuki_25d51a3495dbfd6126acdb93876484ed") # 🔑 Get Key: @MeowApiRobot On Telegram
+
+API_URL = os.environ.get("OWN_API_URL", "http://vapters.site")
 
 DOWNLOAD_DIR = "downloads"
 
@@ -32,7 +32,7 @@ async def download_song(link: str) -> str:
 
     try:
         async with aiohttp.ClientSession() as session:
-            stream_url = f"{API_URL}/stream/{video_id}?key={API_KEY}&type=audio&quality=128"
+            stream_url = f"{API_URL}/stream/{video_id}?vid=false&quality=128"
             async with session.get(stream_url, timeout=aiohttp.ClientTimeout(total=300)) as resp:
                 if resp.status != 200:
                     return None
@@ -65,7 +65,7 @@ async def download_video(link: str) -> str:
 
     try:
         async with aiohttp.ClientSession() as session:
-            stream_url = f"{API_URL}/stream/{video_id}?key={API_KEY}&type=video&quality=480"
+            stream_url = f"{API_URL}/stream/{video_id}?vid=true&quality=480"
             async with session.get(stream_url, timeout=aiohttp.ClientTimeout(total=600)) as resp:
                 if resp.status != 200:
                     return None

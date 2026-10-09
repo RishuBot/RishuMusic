@@ -1,5 +1,11 @@
 # ============================================================
-# stream.py — v18   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# stream.py — v19   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# CHANGELOG (v18 -> v19):
+#   - Thumbnail upload for the card is capped at 4 s (litterbox + uguu race, first wins); after 2
+#     failures in a row it pauses for 5 min and the card uses the YouTube thumbnail at once.
+#     CARD_UPLOAD=0 in config.py disables uploading.
+#   - Slow-step watcher: download / join_call / thumbnail / card slower than SLOW_REPORT_SECONDS
+#     (config.py, default 6 s) sends a DM to OWNER_ID naming the step and the time.
 # CHANGELOG (v17 -> v18):
 #   - Track Info table has a new "🎧 Mode" row: Video when a video is streaming
 #     in the voice chat, otherwise Audio.
@@ -10,8 +16,10 @@
 #   - v17: "added to queue" messages and the index card get coloured buttons too
 #     (5 places).
 # ============================================================
+import asyncio
 import os
 import re
+import time
 import traceback
 from html import escape as _html_escape
 from html import unescape as _html_unescape
@@ -104,14 +112,28 @@ async def _upload_to(sess, host, blob, fname, ctype):
         return None, f"HTTP {r.status}: {txt[:80]!r}"
 
 
+_UP_FAILS = 0
+_UP_PAUSE_UNTIL = 0.0
+UPLOAD_BUDGET = 4  # seconds: the card never waits longer than this for the thumbnail upload
+
+
 async def _temp_public_url(path):
-    """Local thumb file -> public https URL. None if every host fails."""
+    """Local thumb file -> public https URL (litterbox + uguu race, first success wins).
+    v18: capped at UPLOAD_BUDGET seconds, and after 2 failures in a row uploads are paused for
+    5 minutes (the card then uses the YouTube thumbnail instantly). CARD_UPLOAD=0 in config.py
+    turns uploading off completely."""
+    global _UP_FAILS, _UP_PAUSE_UNTIL
     path = str(path or "")
     if not path or path.startswith(("http://", "https://")) or not os.path.isfile(path):
         return None
+    if not getattr(config, "CARD_UPLOAD", True):
+        return None
     if path in _upload_cache:
         return _upload_cache[path]
+    if time.time() < _UP_PAUSE_UNTIL:
+        return None
     notes = []
+    url = None
     try:
         import aiohttp
 
@@ -119,23 +141,83 @@ async def _temp_public_url(path):
             blob = f.read()
         fname = os.path.basename(path)
         ctype = "image/png" if fname.lower().endswith(".png") else "image/jpeg"
-        timeout = aiohttp.ClientTimeout(total=8)
+        timeout = aiohttp.ClientTimeout(total=UPLOAD_BUDGET + 1)
         async with aiohttp.ClientSession(timeout=timeout, headers=_UA) as sess:
-            for host in ("litterbox", "catbox", "uguu"):
-                try:
-                    url, note = await _upload_to(sess, host, blob, fname, ctype)
-                except Exception as ex:
-                    url, note = None, f"{type(ex).__name__}: {ex}"
-                if url:
-                    if len(_upload_cache) > 200:
-                        _upload_cache.clear()
-                    _upload_cache[path] = url
-                    return url
-                notes.append(f"{host}: {note}")
+            pending = {
+                asyncio.create_task(_upload_to(sess, h, blob, fname, ctype)): h
+                for h in ("litterbox", "uguu")
+            }
+            end = time.time() + UPLOAD_BUDGET
+            try:
+                while pending and url is None:
+                    left = end - time.time()
+                    if left <= 0:
+                        notes.append("timeout")
+                        break
+                    done, _ = await asyncio.wait(
+                        list(pending), timeout=left, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if not done:
+                        notes.append("timeout")
+                        break
+                    for t in done:
+                        h = pending.pop(t)
+                        try:
+                            u, note = t.result()
+                        except Exception as ex:
+                            u, note = None, f"{type(ex).__name__}: {ex}"
+                        if u:
+                            url = u
+                            break
+                        notes.append(f"{h}: {note}")
+            finally:
+                for t in pending:
+                    t.cancel()
     except Exception as ex:
         notes.append(f"setup: {type(ex).__name__}: {ex}")
-    await _report_rich_error("stream._temp_public_url", "all-hosts-failed", " | ".join(notes))
+    if url:
+        _UP_FAILS = 0
+        if len(_upload_cache) > 200:
+            _upload_cache.clear()
+        _upload_cache[path] = url
+        return url
+    _UP_FAILS += 1
+    if _UP_FAILS >= 2:
+        _UP_PAUSE_UNTIL = time.time() + 300
+    await _report_rich_error(
+        "stream._temp_public_url", "upload-failed", " | ".join(notes) + " (card used the YouTube thumbnail)"
+    )
     return None
+
+
+# v18 NEW: slow-step watcher. If download / join_call / thumbnail / card takes longer than
+# SLOW_REPORT_SECONDS (config.py), OWNER_ID gets a DM naming the step and the time, so a "slow
+# bot with no error" can be traced without server logs. One DM per step every 5 minutes.
+_slow_seen = {}
+
+
+async def _slow_report(label, dt):
+    if time.time() - _slow_seen.get(label, 0) < 300:
+        return
+    _slow_seen[label] = time.time()
+    msg = f"🐢 <b>Slow step:</b> <code>{label}</code> took <b>{dt:.1f}s</b>"
+    try:
+        await app.send_message(config.OWNER_ID, msg)
+    except Exception:
+        try:
+            await app.send_message(config.LOGGER_ID, msg)
+        except Exception:
+            pass
+
+
+async def _t(label, aw):
+    t0 = time.time()
+    try:
+        return await aw
+    finally:
+        dt = time.time() - t0
+        if dt > float(getattr(config, "SLOW_REPORT_SECONDS", 6)):
+            asyncio.create_task(_slow_report(label, dt))
 
 
 # v7 NEW: user_name aksar pyrogram .mention hota hai (<a href="tg://...">Naam</a>),
@@ -441,18 +523,18 @@ async def stream(
                     db[chat_id] = []
                 status = True if video else None
                 try:
-                    file_path, direct = await YouTube.download(
+                    file_path, direct = await _t("download", YouTube.download(
                         vidid, mystic, video=status, videoid=True
-                    )
+                    ))
                 except:
                     raise AssistantErr(_["play_14"])
-                await shree.join_call(
+                await _t("join_call", shree.join_call(
                     chat_id,
                     original_chat_id,
                     file_path,
                     video=status,
                     image=thumbnail,
-                )
+                ))
                 await put_queue(
                     chat_id,
                     original_chat_id,
@@ -465,10 +547,10 @@ async def stream(
                     "video" if video else "audio",
                     forceplay=forceplay,
                 )
-                img = await get_thumb(vidid, user_id)
+                img = await _t("thumbnail", get_thumb(vidid, user_id))
                 button = stream_markup(_, chat_id)
                 link = f"https://t.me/{app.username}?start=info_{vidid}"
-                run = await _rich_photo_card(
+                run = await _t("card", _rich_photo_card(
                     original_chat_id,
                     img,
                     InlineKeyboardMarkup(button),
@@ -479,7 +561,7 @@ async def stream(
                     link=link,
                     rich_img_url=thumbnail,
                     extra_rows=_mode,
-                )
+                ))
                 db[chat_id][0]["mystic"] = run
                 db[chat_id][0]["markup"] = "stream"
         if count == 0:
@@ -507,9 +589,9 @@ async def stream(
         thumbnail = result["thumb"]
         status = True if video else None
         try:
-            file_path, direct = await YouTube.download(
+            file_path, direct = await _t("download", YouTube.download(
                 vidid, mystic, videoid=True, video=status
-            )
+            ))
         except:
             raise AssistantErr(_["play_14"])
         if await is_active_chat(chat_id):
@@ -534,13 +616,13 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await shree.join_call(
+            await _t("join_call", shree.join_call(
                 chat_id,
                 original_chat_id,
                 file_path,
                 video=status,
                 image=thumbnail,
-            )
+            ))
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -553,10 +635,10 @@ async def stream(
                 "video" if video else "audio",
                 forceplay=forceplay,
             )
-            img = await get_thumb(vidid, user_id)
+            img = await _t("thumbnail", get_thumb(vidid, user_id))
             button = stream_markup(_, chat_id)
             link = f"https://t.me/{app.username}?start=info_{vidid}"
-            run = await _rich_photo_card(
+            run = await _t("card", _rich_photo_card(
                 original_chat_id,
                 img,
                 InlineKeyboardMarkup(button),
@@ -567,7 +649,7 @@ async def stream(
                 link=link,
                 rich_img_url=thumbnail,
                 extra_rows=_mode,
-            )
+            ))
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
     elif streamtype == "soundcloud":
@@ -596,7 +678,7 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await shree.join_call(chat_id, original_chat_id, file_path, video=None)
+            await _t("join_call", shree.join_call(chat_id, original_chat_id, file_path, video=None))
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -610,7 +692,7 @@ async def stream(
                 forceplay=forceplay,
             )
             button = stream_markup(_, chat_id)
-            run = await _rich_photo_card(
+            run = await _t("card", _rich_photo_card(
                 original_chat_id,
                 config.SOUNCLOUD_IMG_URL,
                 InlineKeyboardMarkup(button),
@@ -622,7 +704,7 @@ async def stream(
                 user_name=user_name,
                 link=config.SUPPORT_CHAT,
                 extra_rows=_mode,
-            )
+            ))
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
     elif streamtype == "telegram":
@@ -653,7 +735,7 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await shree.join_call(chat_id, original_chat_id, file_path, video=status)
+            await _t("join_call", shree.join_call(chat_id, original_chat_id, file_path, video=status))
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -669,7 +751,7 @@ async def stream(
             if video:
                 await add_active_video_chat(chat_id)
             button = stream_markup(_, chat_id)
-            run = await _rich_photo_card(
+            run = await _t("card", _rich_photo_card(
                 original_chat_id,
                 config.TELEGRAM_VIDEO_URL if video else config.TELEGRAM_AUDIO_URL,
                 InlineKeyboardMarkup(button),
@@ -679,7 +761,7 @@ async def stream(
                 user_name=user_name,
                 link=link,
                 extra_rows=_mode,
-            )
+            ))
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
     elif streamtype == "live":
@@ -714,13 +796,13 @@ async def stream(
             n, file_path = await YouTube.video(link)
             if n == 0:
                 raise AssistantErr(_["str_3"])
-            await shree.join_call(
+            await _t("join_call", shree.join_call(
                 chat_id,
                 original_chat_id,
                 file_path,
                 video=status,
                 image=thumbnail if thumbnail else None,
-            )
+            ))
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -733,10 +815,10 @@ async def stream(
                 "video" if video else "audio",
                 forceplay=forceplay,
             )
-            img = await get_thumb(vidid, user_id)
+            img = await _t("thumbnail", get_thumb(vidid, user_id))
             button = stream_markup(_, chat_id)
             live_link = f"https://t.me/{app.username}?start=info_{vidid}"
-            run = await _rich_photo_card(
+            run = await _t("card", _rich_photo_card(
                 original_chat_id,
                 img,
                 InlineKeyboardMarkup(button),
@@ -747,7 +829,7 @@ async def stream(
                 link=live_link,
                 rich_img_url=thumbnail,
                 extra_rows=_mode,
-            )
+            ))
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
     elif streamtype == "index":
@@ -774,12 +856,12 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await shree.join_call(
+            await _t("join_call", shree.join_call(
                 chat_id,
                 original_chat_id,
                 link,
                 video=True if video else None,
-            )
+            ))
             await put_queue_index(
                 chat_id,
                 original_chat_id,
@@ -792,7 +874,7 @@ async def stream(
                 forceplay=forceplay,
             )
             button = stream_markup(_, chat_id)
-            run = await _rich_photo_card(
+            run = await _t("card", _rich_photo_card(
                 original_chat_id,
                 config.STREAM_IMG_URL,
                 InlineKeyboardMarkup(button),
@@ -800,7 +882,7 @@ async def stream(
                 title=title,
                 user_name=user_name,
                 extra_rows=_mode,
-            )
+            ))
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
             await mystic.delete()

@@ -1,4 +1,7 @@
+# thumbnails.py v9 (CHANGED): Pillow work runs in a worker thread (no more bot-wide freeze per
+# song), one render at a time, faster blur + PNG encode. Look is the same.
 # thumbnails.py v8 (CHANGED): naya frosted-panel design (gen_thumb) + purana get_thumb(videoid, user_id) wrapper
+import asyncio
 import os
 import re
 import traceback
@@ -56,6 +59,67 @@ def trim_to_width(text, font, max_width):
     return ellipsis
 
 
+# v9: all the Pillow work lives here so it can run in a worker thread. Before, it ran directly
+# inside the event loop, which froze the WHOLE bot (voice callbacks, every other chat) for a
+# moment on every new song.
+FAST_BLUR = True  # blur a small copy instead of the full 1280x720 image (same look, ~10x cheaper)
+_RENDER_SEM = asyncio.Semaphore(1)  # one render at a time - never a CPU burst
+
+
+def _compose(thumb_path, cache_path, title, views, is_live, duration_text):
+    base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
+    if FAST_BLUR:
+        small = base.resize((320, 180)).filter(ImageFilter.BoxBlur(2.5))
+        blurred = small.resize((1280, 720), Image.BILINEAR)
+    else:
+        blurred = base.filter(ImageFilter.BoxBlur(10))
+    bg = ImageEnhance.Brightness(blurred).enhance(0.6)
+
+    panel_area = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
+    overlay = Image.new("RGBA", (PANEL_W, PANEL_H), (255, 255, 255, TRANSPARENCY))
+    frosted = Image.alpha_composite(panel_area, overlay)
+    mask = Image.new("L", (PANEL_W, PANEL_H), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, PANEL_W, PANEL_H), 50, fill=255)
+    bg.paste(frosted, (PANEL_X, PANEL_Y), mask)
+
+    draw = ImageDraw.Draw(bg)
+    try:
+        title_font = ImageFont.truetype(f"{ASSETS}/font2.ttf", 32)
+        regular_font = ImageFont.truetype(f"{ASSETS}/font.ttf", 18)
+    except OSError:
+        title_font = regular_font = ImageFont.load_default()
+
+    thumb = base.resize((THUMB_W, THUMB_H))
+    tmask = Image.new("L", thumb.size, 0)
+    ImageDraw.Draw(tmask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), 20, fill=255)
+    bg.paste(thumb, (THUMB_X, THUMB_Y), tmask)
+
+    draw.text((TITLE_X, TITLE_Y), trim_to_width(title, title_font, MAX_TITLE_WIDTH), fill="black", font=title_font)
+    draw.text((META_X, META_Y), f"YouTube | {views}", fill="black", font=regular_font)
+
+    draw.line([(BAR_X, BAR_Y), (BAR_X + BAR_RED_LEN, BAR_Y)], fill="red", width=6)
+    draw.line([(BAR_X + BAR_RED_LEN, BAR_Y), (BAR_X + BAR_TOTAL_LEN, BAR_Y)], fill="gray", width=5)
+    draw.ellipse([(BAR_X + BAR_RED_LEN - 7, BAR_Y - 7), (BAR_X + BAR_RED_LEN + 7, BAR_Y + 7)], fill="red")
+
+    draw.text((BAR_X, BAR_Y + 15), "00:00", fill="black", font=regular_font)
+    end_text = "Live" if is_live else duration_text
+    draw.text((BAR_X + BAR_TOTAL_LEN - (90 if is_live else 60), BAR_Y + 15), end_text, fill="red" if is_live else "black", font=regular_font)
+
+    icons_path = f"{ASSETS}/play_icons.png"
+    if os.path.isfile(icons_path):
+        ic = Image.open(icons_path).resize((ICONS_W, ICONS_H)).convert("RGBA")
+        r, g, b, a = ic.split()
+        black_ic = Image.merge("RGBA", (r.point(lambda *_: 0), g.point(lambda *_: 0), b.point(lambda *_: 0), a))
+        bg.paste(black_ic, (ICONS_X, ICONS_Y), black_ic)
+
+    try:
+        os.remove(thumb_path)
+    except OSError:
+        pass
+
+    bg.save(cache_path, compress_level=1)  # v9: faster PNG encode
+
+
 async def gen_thumb(videoid: str) -> str:
     cache_path = os.path.join(CACHE_DIR, f"{videoid}_v4.png")
 
@@ -94,52 +158,11 @@ async def gen_thumb(videoid: str) -> str:
         async with aiofiles.open(thumb_path, "wb") as f:
             await f.write(content)
 
-        base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
-        bg = ImageEnhance.Brightness(base.filter(ImageFilter.BoxBlur(10))).enhance(0.6)
-
-        panel_area = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
-        overlay = Image.new("RGBA", (PANEL_W, PANEL_H), (255, 255, 255, TRANSPARENCY))
-        frosted = Image.alpha_composite(panel_area, overlay)
-        mask = Image.new("L", (PANEL_W, PANEL_H), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, PANEL_W, PANEL_H), 50, fill=255)
-        bg.paste(frosted, (PANEL_X, PANEL_Y), mask)
-
-        draw = ImageDraw.Draw(bg)
-        try:
-            title_font = ImageFont.truetype(f"{ASSETS}/font2.ttf", 32)
-            regular_font = ImageFont.truetype(f"{ASSETS}/font.ttf", 18)
-        except OSError:
-            title_font = regular_font = ImageFont.load_default()
-
-        thumb = base.resize((THUMB_W, THUMB_H))
-        tmask = Image.new("L", thumb.size, 0)
-        ImageDraw.Draw(tmask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), 20, fill=255)
-        bg.paste(thumb, (THUMB_X, THUMB_Y), tmask)
-
-        draw.text((TITLE_X, TITLE_Y), trim_to_width(title, title_font, MAX_TITLE_WIDTH), fill="black", font=title_font)
-        draw.text((META_X, META_Y), f"YouTube | {views}", fill="black", font=regular_font)
-
-        draw.line([(BAR_X, BAR_Y), (BAR_X + BAR_RED_LEN, BAR_Y)], fill="red", width=6)
-        draw.line([(BAR_X + BAR_RED_LEN, BAR_Y), (BAR_X + BAR_TOTAL_LEN, BAR_Y)], fill="gray", width=5)
-        draw.ellipse([(BAR_X + BAR_RED_LEN - 7, BAR_Y - 7), (BAR_X + BAR_RED_LEN + 7, BAR_Y + 7)], fill="red")
-
-        draw.text((BAR_X, BAR_Y + 15), "00:00", fill="black", font=regular_font)
-        end_text = "Live" if is_live else duration_text
-        draw.text((BAR_X + BAR_TOTAL_LEN - (90 if is_live else 60), BAR_Y + 15), end_text, fill="red" if is_live else "black", font=regular_font)
-
-        icons_path = f"{ASSETS}/play_icons.png"
-        if os.path.isfile(icons_path):
-            ic = Image.open(icons_path).resize((ICONS_W, ICONS_H)).convert("RGBA")
-            r, g, b, a = ic.split()
-            black_ic = Image.merge("RGBA", (r.point(lambda *_: 0), g.point(lambda *_: 0), b.point(lambda *_: 0), a))
-            bg.paste(black_ic, (ICONS_X, ICONS_Y), black_ic)
-
-        try:
-            os.remove(thumb_path)
-        except OSError:
-            pass
-
-        bg.save(cache_path)
+        loop = asyncio.get_running_loop()
+        async with _RENDER_SEM:
+            await loop.run_in_executor(
+                None, _compose, thumb_path, cache_path, title, views, is_live, duration_text
+            )
         return cache_path
     except Exception:
         traceback.print_exc()  # v8: asli error console me

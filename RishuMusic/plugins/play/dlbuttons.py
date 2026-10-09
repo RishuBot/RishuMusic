@@ -1,6 +1,9 @@
 # ============================================================
-# RishuMusic/plugins/play/dlbuttons.py — v5
+# RishuMusic/plugins/play/dlbuttons.py — v6
 #
+# CHANGELOG (v5 -> v6):
+#   - Download API address + quality are read from config.py (DL_API_URL,
+#     DL_AUDIO_QUALITY, DL_VIDEO_QUALITY) instead of being hardcoded here.
 # CHANGELOG (v3 -> v5):
 #   - NEW: "APTOGGLE <chat_id>" callback = the Autoplay ON/OFF button that replaced
 #     YT-API on the play card. Admins only (same rule as Pause/Skip). It flips the
@@ -43,6 +46,7 @@ from RishuMusic import YouTube, app
 from RishuMusic.misc import SUDOERS, db
 from RishuMusic.utils.database import is_active_chat, is_nonadmin_chat
 from RishuMusic.utils.play_buttons import decorate_markup, is_autoplay_on, set_autoplay
+import config
 from config import BANNED_USERS, adminlist
 
 try:
@@ -51,9 +55,10 @@ except Exception:  # pragma: no cover
     time_to_seconds = None
 
 # ---- download API ----
-API_BASE = "https://vapters.site/stream"
-AUDIO_PARAMS = {"vid": "false", "quality": "192"}
-VIDEO_PARAMS = {"vid": "true", "quality": "720"}  # ASSUMED - confirm with your API
+# v6: API address and quality now come from config.py (DL_API_URL, DL_AUDIO_QUALITY, DL_VIDEO_QUALITY)
+API_BASE = str(getattr(config, "DL_API_URL", "https://vapters.site/stream")).rstrip("/")
+AUDIO_PARAMS = {"vid": "false", "quality": str(getattr(config, "DL_AUDIO_QUALITY", "192"))}
+VIDEO_PARAMS = {"vid": "true", "quality": str(getattr(config, "DL_VIDEO_QUALITY", "720"))}  # video params ASSUMED
 DL_DIR = "downloads"
 MAX_BYTES = 500 * 1024 * 1024
 API_TIMEOUT = 180  # seconds

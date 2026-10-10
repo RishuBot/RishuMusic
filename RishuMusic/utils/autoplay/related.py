@@ -70,7 +70,7 @@ def _usable(e, vidid, picked):
     return not (d and (d < 60 or d > 720))
 
 
-async def fetch_related(vidid, title):
+async def fetch_related(vidid, title, avoid=None):
     loop = asyncio.get_running_loop()
     name = clean_name(title)
     sources = (
@@ -84,7 +84,7 @@ async def fetch_related(vidid, title):
     # of the list (prefetch downloads in this order). If AI or the search fails, nothing is lost:
     # the old sources below still fill the list exactly like before.
     try:
-        names = await ai_related(title)
+        names = await ai_related(title, avoid)  # v6: AI is told what was already played
         found = await asyncio.gather(
             *[_search_limited(loop, n) for n in names],
             return_exceptions=True,

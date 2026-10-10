@@ -34,12 +34,16 @@ HEROKU_API_KEY = getenv("HEROKU_API_KEY")
 
 
 
+
 GEMINI_API_KEY   = getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL     = getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+# empty = automatic: ai.py tries gemini-flash-lite-latest, gemini-3.5-flash-lite, ... and skips retired models
+GEMINI_MODEL     = getenv("GEMINI_MODEL", "")
 GROQ_API_KEY     = getenv("GROQ_API_KEY", "")
-GROQ_MODELS      = getenv("GROQ_MODELS", "llama-3.1-8b-instant,openai/gpt-oss-20b")
+# empty = automatic (llama-3.1-8b-instant, llama-3.3-70b-versatile, ... and Groq's own model list)
+GROQ_MODELS      = getenv("GROQ_MODELS", "")
 POLLINATIONS_KEY = getenv("POLLINATIONS_KEY", "")
 AI_AUTOPLAY      = getenv("AI_AUTOPLAY", "1")
+
 
 
 UPSTREAM_REPO = getenv(

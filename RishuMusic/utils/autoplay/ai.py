@@ -1,4 +1,14 @@
 # ============================================================
+# RishuMusic/utils/autoplay/ai.py — v5
+#   v5 (after the Owner DM "gemini HTTP 404 | groq: empty answer | pollinations HTTP 401"):
+#     - Gemini: gemini-2.5-flash-lite was retired -> tries gemini-flash-lite-latest (alias that never
+#       retires), gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-flash-latest; a 404 model is
+#       skipped for 6 h, and if all fail it asks Google's own model list.
+#     - Groq: tries llama-3.1-8b-instant, llama-3.3-70b-versatile, gpt-oss-20b (low reasoning);
+#       an EMPTY answer now moves on to the next model; falls back to Groq's own model list.
+#     - Pollinations now needs a key (HTTP 401) -> only used when POLLINATIONS_KEY is set.
+#     - Error text from the API is kept, so the Owner DM shows the real reason.
+#   (v4 line follows)
 # RishuMusic/utils/autoplay/ai.py — v4   (v4: avoid-list of recently played songs in the prompt + cache key,
 #   asks for 8 names, LAST = why AI worked / failed)
 # (v3 = 8 s cap)   (v3: whole AI step capped at 8 s, 6 s per provider)
@@ -48,20 +58,25 @@ def _cfg(name: str, default: str = "") -> str:
 
 
 GEMINI_KEY = _cfg("GEMINI_API_KEY")
-GEMINI_MODEL = _cfg("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GEMINI_URL = _cfg(
     "GEMINI_URL", "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
+GEMINI_LIST_URL = _cfg("GEMINI_LIST_URL", "https://generativelanguage.googleapis.com/v1beta/models")
+# your own GEMINI_MODEL (if set) goes first; the rest are current as of Oct 2026
+GEMINI_MODELS = [m for m in dict.fromkeys(
+    [_cfg("GEMINI_MODEL")]
+    + ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-latest"]
+) if m]
 GROQ_KEY = _cfg("GROQ_API_KEY")
-GROQ_MODELS = [
-    m.strip()
-    for m in _cfg("GROQ_MODELS", "llama-3.1-8b-instant,openai/gpt-oss-20b").split(",")
-    if m.strip()
-]
+GROQ_MODELS = [m for m in dict.fromkeys(
+    [x.strip() for x in _cfg("GROQ_MODELS").split(",")]
+    + ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"]
+) if m]
 GROQ_URL = _cfg("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
+GROQ_LIST_URL = _cfg("GROQ_LIST_URL", "https://api.groq.com/openai/v1/models")
 POLL_KEY = _cfg("POLLINATIONS_KEY")
 POLL_URL = _cfg("POLLINATIONS_URL", "https://gen.pollinations.ai/text/")
-ENABLED = _cfg("AI_AUTOPLAY", "1") != "0"
+ENABLED = _cfg("AI_AUTOPLAY", "1").lower() not in ("0", "false", "no", "off")
 
 COUNT = 5
 TIMEOUT = 6  # seconds per provider
@@ -127,36 +142,143 @@ def parse_names(text, limit: int = COUNT + 3):
 
 
 # ---------------- providers ----------------
-async def _gemini(sess, prompt):
-    url = GEMINI_URL.format(model=GEMINI_MODEL)
+_dead_models = {}  # model -> time until which it is skipped (retired / not found)
+DEAD_SECONDS = 6 * 3600
+_NOT_CHAT = re.compile(r"whisper|tts|guard|orpheus|playai|safeguard|embed|image|imagen|live|audio|robotics|computer", re.I)
+
+
+async def _err(r, who):
+    """Exception text with the API's own message (shown in the Owner DM)."""
+    try:
+        body = re.sub(r"\s+", " ", (await r.text()))[:110]
+    except Exception:
+        body = ""
+    return RuntimeError(f"{who} HTTP {r.status} {body}".strip())
+
+
+def _alive(model):
+    return _dead_models.get(model, 0) < time.time()
+
+
+async def _gemini_call(sess, model, prompt):
+    url = GEMINI_URL.format(model=model)
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.7, "maxOutputTokens": 800},
     }
     async with sess.post(url, headers={"x-goog-api-key": GEMINI_KEY}, json=body) as r:
         if r.status != 200:
-            raise RuntimeError(f"gemini HTTP {r.status}")
+            raise await _err(r, f"gemini[{model}]")
         j = await r.json(content_type=None)
     return "".join(p.get("text", "") for p in j["candidates"][0]["content"]["parts"])
+
+
+async def _gemini_discover(sess):
+    """Ask Google which models this key can use (flash-lite first, newest version first)."""
+    async with sess.get(GEMINI_LIST_URL, headers={"x-goog-api-key": GEMINI_KEY}, params={"pageSize": 200}) as r:
+        if r.status != 200:
+            raise await _err(r, "gemini-list")
+        j = await r.json(content_type=None)
+    out = []
+    for m in j.get("models", []):
+        name = str(m.get("name", "")).replace("models/", "")
+        if "generateContent" not in (m.get("supportedGenerationMethods") or []):
+            continue
+        if "flash" not in name or _NOT_CHAT.search(name) or "preview" in name or "exp" in name:
+            continue
+        ver = re.search(r"(\d+(?:\.\d+)?)", name)
+        out.append((0 if "lite" in name else 1, -float(ver.group(1)) if ver else 0, name))
+    return [n for _a, _b, n in sorted(out)][:3]
+
+
+async def _gemini(sess, prompt):
+    last = None
+    for model in GEMINI_MODELS:
+        if not _alive(model):
+            continue
+        try:
+            text = await _gemini_call(sess, model, prompt)
+        except RuntimeError as ex:
+            last = ex
+            if " HTTP 404" in str(ex) or " HTTP 400" in str(ex):  # retired / unknown model: skip it for a while
+                _dead_models[model] = time.time() + DEAD_SECONDS
+                continue
+            raise  # 401/403/429/5xx: the key or the service, another model will not help
+        if text.strip():
+            return text
+        last = RuntimeError(f"gemini[{model}] empty answer")
+    # every listed model is gone -> use whatever Google says is available now
+    for model in await _gemini_discover(sess):
+        if not _alive(model):
+            continue
+        try:
+            text = await _gemini_call(sess, model, prompt)
+        except RuntimeError as ex:
+            last = ex
+            _dead_models[model] = time.time() + DEAD_SECONDS
+            continue
+        if text.strip():
+            GEMINI_MODELS.insert(0, model)  # remember the one that works
+            return text
+    raise last or RuntimeError("gemini: no usable model")
+
+
+async def _groq_call(sess, model, prompt):
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+        "max_tokens": 1024,
+    }
+    if "gpt-oss" in model:  # reasoning model: keep thinking short or it eats all the tokens (empty answer)
+        body["reasoning_effort"] = "low"
+    async with sess.post(GROQ_URL, headers={"Authorization": f"Bearer {GROQ_KEY}"}, json=body) as r:
+        if r.status != 200:
+            raise await _err(r, f"groq[{model}]")
+        j = await r.json(content_type=None)
+    return (j["choices"][0]["message"].get("content") or "").strip()
+
+
+async def _groq_discover(sess):
+    async with sess.get(GROQ_LIST_URL, headers={"Authorization": f"Bearer {GROQ_KEY}"}) as r:
+        if r.status != 200:
+            raise await _err(r, "groq-list")
+        j = await r.json(content_type=None)
+    ids = [m.get("id", "") for m in j.get("data", []) if m.get("active", True)]
+    ids = [i for i in ids if i and not _NOT_CHAT.search(i)]
+    ids.sort(key=lambda i: (0 if "llama" in i and ("8b" in i or "instant" in i) else 1 if "llama" in i else 2, i))
+    return ids[:3]
 
 
 async def _groq(sess, prompt):
     last = None
     for model in GROQ_MODELS:
-        body = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-            "max_tokens": 400,
-        }
-        async with sess.post(GROQ_URL, headers={"Authorization": f"Bearer {GROQ_KEY}"}, json=body) as r:
-            if r.status == 200:
-                j = await r.json(content_type=None)
-                return j["choices"][0]["message"]["content"]
-            last = r.status
-            if r.status in (401, 403, 429):  # key / rate problem: another model won't help
-                break
-    raise RuntimeError(f"groq HTTP {last}")
+        if not _alive(model):
+            continue
+        try:
+            text = await _groq_call(sess, model, prompt)
+        except RuntimeError as ex:
+            last = ex
+            if any(c in str(ex) for c in (" HTTP 404", " HTTP 400")):  # decommissioned model
+                _dead_models[model] = time.time() + DEAD_SECONDS
+                continue
+            raise  # 401/403/429/5xx: key or rate limit
+        if text:
+            return text
+        last = RuntimeError(f"groq[{model}] empty answer")  # try the next model
+    for model in await _groq_discover(sess):
+        if not _alive(model):
+            continue
+        try:
+            text = await _groq_call(sess, model, prompt)
+        except RuntimeError as ex:
+            last = ex
+            _dead_models[model] = time.time() + DEAD_SECONDS
+            continue
+        if text:
+            GROQ_MODELS.insert(0, model)
+            return text
+    raise last or RuntimeError("groq: no usable model")
 
 
 async def _pollinations(sess, prompt):
@@ -165,7 +287,7 @@ async def _pollinations(sess, prompt):
     flat = re.sub(r"\s+", " ", prompt).replace("/", "-")
     async with sess.get(POLL_URL + quote(flat, safe=""), params=params) as r:
         if r.status != 200:
-            raise RuntimeError(f"pollinations HTTP {r.status}")
+            raise await _err(r, "pollinations")
         return await r.text()
 
 
@@ -175,7 +297,10 @@ def _providers():
         p.append(("gemini", _gemini))
     if GROQ_KEY:
         p.append(("groq", _groq))
-    p.append(("pollinations", _pollinations))
+    if POLL_KEY:  # without a key it answers HTTP 401 now
+        p.append(("pollinations", _pollinations))
+    if not p:
+        LAST.update(ok=False, provider="", why="no AI key set")
     return p
 
 
@@ -223,5 +348,5 @@ async def ai_related(title: str, avoid=None):
                     LAST.update(ok=True, provider=name, why="")
                     return names
                 fails.append(f"{name}: empty answer")
-    LAST.update(ok=False, provider="", why=" | ".join(fails) or "no provider")
+    LAST.update(ok=False, provider="", why=" | ".join(fails) or "no AI key set (GEMINI_API_KEY / GROQ_API_KEY)")
     return []

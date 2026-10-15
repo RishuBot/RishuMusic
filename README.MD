@@ -348,17 +348,13 @@ If RishuMusic helps you, a star takes two seconds and keeps the project going.
 
 [![Star History Chart](https://api.star-history.com/svg?repos=RishuBot/RishuMusic&type=Date)](https://star-history.com/#RishuBot/RishuMusic&Date)
 
-### 👥 Contributors
 
-<a href="https://github.com/RishuBot/RishuMusic/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=RishuBot/RishuMusic" alt="Contributors">
-</a>
 
 ---
 
 <div align="center">
 
-Built on the open-source Pyrogram / Kurigram + py-tgcalls music-bot ecosystem. Thanks to the original authors and to everyone who contributes.
+Built on the open-source Pyrogram / Kurigram + py-tgcalls music-bot ecosystem. Thanks to Rishu.
 
 **Maintained by Rishu** · Telegram [@RishuCoder](https://t.me/RishuCoder)
 

@@ -44,7 +44,7 @@ GROQ_MODELS      = getenv("GROQ_MODELS", "")
 POLLINATIONS_KEY = getenv("POLLINATIONS_KEY", "")
 AI_AUTOPLAY      = getenv("AI_AUTOPLAY", "1")
 
-
+REPO_URL = "https://github.com/RishuBot/RishuMusic"
 
 UPSTREAM_REPO = getenv(
     "UPSTREAM_REPO",

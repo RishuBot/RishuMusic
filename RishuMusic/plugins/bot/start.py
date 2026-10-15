@@ -1,5 +1,9 @@
 # ============================================================
-# start.py — v20
+# start.py — v21
+# CHANGELOG (v20 -> v21):
+#   - Rich body buttons: the "Add to Group" pill was replaced by a "⭐ Repo" pill that opens the
+#     repository (config.REPO_URL, default https://github.com/RishuBot/RishuMusic). The inline
+#     keyboard under the message is unchanged (it keeps "Add Me In Your Group").
 # CHANGELOG (v19 -> v20):
 #   - Removed the "⚙️ Admin Panel" row from build_reply_markup() entirely,
 #     per request — /start now shows the exact same button set (just
@@ -430,9 +434,11 @@ def rich_start_html(
     # either — its help/admin buttons are ONLY in the reply_markup below,
     # never as an in-body tg-button). Keeping ONLY url-type pills here.
     button_pills = []
-    add_url = safe_url(f"https://t.me/{app.username}?startgroup=true") if getattr(app, "username", None) else None
-    if add_url:
-        button_pills.append(rich_button(escape(_["S_B_3"]), url=add_url, style="primary"))
+    # v21: the "Add to Group" pill of the rich body is now a "Repo" pill (the keyboard under the
+    # message still has "Add Me In Your Group" from private_panel()). URL: REPO_URL in config.py.
+    repo_url = safe_url(getattr(config, "REPO_URL", "https://github.com/RishuBot/RishuMusic"))
+    if repo_url:
+        button_pills.append(rich_button("⭐ Repo", url=repo_url, style="primary"))
     support_url = safe_url(getattr(config, "SUPPORT_CHANNEL", None))
     if support_url:
         button_pills.append(rich_button(escape(_["S_B_5"]), url=support_url, style="success"))

@@ -1,5 +1,16 @@
 # ============================================================
-# stream.py — v19   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# stream.py — v22   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
+# CHANGELOG (v21 -> v22):
+#   - The last plain "added to queue" text (link / index streams) is a rich card too, so every
+#     "Music on streaming 1 / 2 ..." text message is now the table card.
+# CHANGELOG (v20 -> v21):
+#   - "🐢 Slow step: download" DM now also says where the time went: which source answered,
+#     how long the API made us wait, how long the file transfer took, and the size.
+# CHANGELOG (v19 -> v20):
+#   - "Added to queue" (a song is already playing and another one is requested) is now a rich
+#     card: thumbnail + "➕ Added to Queue" heading + table (Title, Duration, Requested By,
+#     Position, Mode). Plain text fallback if the rich card is refused. (YouTube, live,
+#     SoundCloud and Telegram-file adds; link/index adds keep the old text.)
 # CHANGELOG (v18 -> v19):
 #   - Thumbnail upload for the card is capped at 4 s (litterbox + uguu race, first wins); after 2
 #     failures in a row it pauses for 5 min and the card uses the YouTube thumbnail at once.
@@ -201,6 +212,19 @@ async def _slow_report(label, dt):
         return
     _slow_seen[label] = time.time()
     msg = f"🐢 <b>Slow step:</b> <code>{label}</code> took <b>{dt:.1f}s</b>"
+    if label == "download":  # v21: where did the time go?
+        try:
+            from RishuMusic.platforms.Youtube import LAST_DL as d
+
+            if d.get("ok"):
+                msg += (
+                    f"\nsource: <code>{d.get('source')}</code> · API wait: <b>{d.get('wait')}s</b> · "
+                    f"transfer: <b>{d.get('transfer')}s</b> · size: {d.get('size_mb')} MB"
+                )
+            elif d:
+                msg += f"\nlast attempt failed: <code>{str(d.get('why'))[:150]}</code>"
+        except Exception:
+            pass
     try:
         await app.send_message(config.OWNER_ID, msg)
     except Exception:
@@ -463,6 +487,45 @@ async def _rich_photo_card(
 # v10 NEW: public name, skip/auto-next files isse import karke use karein
 rich_now_playing = _rich_photo_card
 
+# v20 NEW: "added to queue" card. When a song is already playing and another one is requested,
+# the answer is a rich card (thumbnail + table) instead of plain text.
+async def _queue_card(chat_id, button, _, position, title, duration_min, user_name, video,
+                      vidid=None, link=None):
+    markup = pb.paint_markup(InlineKeyboardMarkup(button))
+    plain = _["queue_4"].format(position, title[:27], duration_min, user_name)
+    if RICH_AVAILABLE:
+        try:
+            title_cell = rich_esc(title)
+            if link:
+                title_cell = f'<a href="{rich_esc(link)}">{title_cell}</a>'
+            dur = str(duration_min)
+            dur_txt = f"{rich_esc(dur)} min" if re.match(r"^[\d:]+$", dur) else rich_esc(dur)
+            rows = [
+                ("🔗 Title", title_cell),
+                ("⏱ Duration", dur_txt),
+                ("👤 Requested By", f"<b>{rich_esc(_plain_name(user_name))}</b>"),
+                ("📋 Position", f"#{position} in queue"),
+                ("🎧 Mode", "Video" if video else "Audio"),
+            ]
+            core = "<h1>➕ Added to Queue</h1>" + rich_kv_table(rows)
+            bodies = []
+            if vidid:  # with the YouTube thumbnail first, then without it (if Telegram finds no image)
+                bodies.append(rich_img(f"https://i.ytimg.com/vi/{vidid}/hqdefault.jpg") + "\n" + core)
+            bodies.append(core)
+            for body in bodies:
+                try:
+                    return await app.send_rich_message(
+                        chat_id=chat_id,
+                        rich_message=_input_rich(render_custom_emojis(body)),
+                        reply_markup=markup,
+                    )
+                except Exception as ex:
+                    await _report_rich_error("stream._queue_card", "rich", f"{type(ex).__name__}: {ex}")
+        except Exception as ex:
+            await _report_rich_error("stream._queue_card", "build", f"{type(ex).__name__}: {ex}")
+    return await app.send_message(chat_id=chat_id, text=plain, reply_markup=markup)
+
+
 async def stream(
     _,
     mystic,
@@ -608,11 +671,8 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
-                chat_id=original_chat_id,
-                text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
-            )
+            await _queue_card(original_chat_id, button, _, position, title, duration_min, user_name, video,
+                              vidid=vidid, link=f"https://t.me/{app.username}?start=info_{vidid}")
         else:
             if not forceplay:
                 db[chat_id] = []
@@ -670,11 +730,8 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
-                chat_id=original_chat_id,
-                text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
-            )
+            await _queue_card(original_chat_id, button, _, position, title, duration_min, user_name, False,
+                              link=config.SUPPORT_CHAT)
         else:
             if not forceplay:
                 db[chat_id] = []
@@ -727,11 +784,8 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
-                chat_id=original_chat_id,
-                text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
-            )
+            await _queue_card(original_chat_id, button, _, position, title, duration_min, user_name, video,
+                              link=link)
         else:
             if not forceplay:
                 db[chat_id] = []
@@ -785,11 +839,8 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await app.send_message(
-                chat_id=original_chat_id,
-                text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
-            )
+            await _queue_card(original_chat_id, button, _, position, title, duration_min, user_name, video,
+                              vidid=vidid, link=f"https://t.me/{app.username}?start=info_{vidid}")
         else:
             if not forceplay:
                 db[chat_id] = []
@@ -849,10 +900,12 @@ async def stream(
             )
             position = len(db.get(chat_id)) - 1
             button = aq_markup(_, chat_id)
-            await mystic.edit_text(
-                text=_["queue_4"].format(position, title[:27], duration_min, user_name),
-                reply_markup=pb.paint_markup(InlineKeyboardMarkup(button)),
-            )
+            # v22: link / index streams get the rich queue card too (the "searching" message is removed)
+            await _queue_card(original_chat_id, button, _, position, title, duration_min, user_name, video, link=link)
+            try:
+                await mystic.delete()
+            except Exception:
+                pass
         else:
             if not forceplay:
                 db[chat_id] = []

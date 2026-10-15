@@ -1,5 +1,13 @@
 # ============================================================
-# play.py — v8
+# play.py — v9
+# CHANGELOG (v8 -> v9):
+#   - Query / URL plays now start with a rich "🔎 Searching" card with a table (Query,
+#     Requested By, Mode, Status) instead of a plain "searching" text. It then turns into the
+#     result card or the Now-Streaming card. If Telegram refuses to edit it into plain text
+#     (errors like "not found"), it is replaced once by a normal message. Playing a replied
+#     audio/video file keeps the old plain progress message.
+#   - The result card tries the raw thumbnail URL, then the stable YouTube hqdefault.jpg, so the
+#     table card no longer drops to a plain photo when Telegram finds no image at the raw URL.
 # CHANGELOG (v7 -> v8):
 #   - "play <query>" (and vplay / cplay / ...) works WITHOUT the slash, as long as a
 #     query follows. "/play" keeps working exactly as before.
@@ -26,12 +34,18 @@
 # ============================================================
 
 import random
+import re
 import string
 import traceback
 from html import escape as _html_escape
 
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InputMediaPhoto, Message
+
+try:  # Kurigram >= 2.2.26
+    from pyrogram.types import ReplyParameters
+except Exception:  # pragma: no cover
+    ReplyParameters = None
 from pyrogram.errors.exceptions.bad_request_400 import MessageIdInvalid
 from pytgcalls.exceptions import NoActiveGroupCall
 
@@ -101,6 +115,75 @@ def _rich_details(title: str, table: str, emoji: str = "🎵") -> str:
     return f"<h1>{lead}{title}</h1>{table}"
 
 
+# v9 NEW: stable YouTube thumbnail (…/hq720.jpg?sqp=… often answers NO_MEDIA_FOUND in a rich card)
+def _norm_yt(url):
+    m = re.search(r"ytimg\.com/vi(?:_webp)?/([\w-]{11})/", str(url or ""))
+    return f"https://i.ytimg.com/vi/{m.group(1)}/hqdefault.jpg" if m else None
+
+
+# v9 NEW: wraps the rich "Searching" card. Telegram may refuse to edit a rich message into plain
+# text; if so the card is replaced ONCE by a normal text message and, from then on, behaves like a
+# normal Message (so every later mystic.edit_text / mystic.delete in this file keeps working).
+class _Status:
+    def __init__(self, msg):
+        object.__setattr__(self, "_m", msg)
+
+    def __getattr__(self, name):
+        return getattr(self._m, name)
+
+    async def edit_text(self, text, *args, **kwargs):
+        try:
+            res = await self._m.edit_text(text, *args, **kwargs)
+            if res is not None and hasattr(res, "id"):
+                object.__setattr__(self, "_m", res)
+            return self._m
+        except Exception as ex:
+            if "MESSAGE_NOT_MODIFIED" in str(ex).upper():
+                return self._m
+            old = self._m
+            new = await app.send_message(old.chat.id, text, **kwargs)
+            try:
+                await old.delete()
+            except Exception:
+                pass
+            object.__setattr__(self, "_m", new)
+            return new
+
+
+async def _status_card(message, _, channel, video):
+    """The message shown while a query is being searched: a rich card with a table
+    (Query / Requested By / Mode / Status). Falls back to the old plain text message."""
+    plain = _["play_2"].format(channel) if channel else _["play_1"]
+    rm = message.reply_to_message
+    if rm and (rm.audio or rm.voice or rm.video or rm.document):
+        return await message.reply_text(plain)  # file play: keep the normal progress message
+    if RICH_AVAILABLE:
+        try:
+            query = " ".join(message.command[1:]) if message.command and len(message.command) > 1 else ""
+            if len(query) > 70:
+                query = query[:67] + "..."
+            rows = [("🎵 Query", rich_esc(query) if query else "—")]
+            if channel:
+                rows.append(("📢 Channel", rich_esc(str(channel))))
+            rows += [
+                ("👤 Requested By", rich_esc(message.from_user.first_name if message.from_user else "User")),
+                ("🎧 Mode", "Video" if video else "Audio"),
+                ("⏳ Status", "Searching..."),
+            ]
+            body = render_custom_emojis("<h1>🔎 Searching</h1>" + rich_kv_table(rows))
+            kw = {}
+            if ReplyParameters is not None:
+                kw["reply_parameters"] = ReplyParameters(message_id=message.id)
+            sent = await app.send_rich_message(
+                chat_id=message.chat.id, rich_message=_input_rich(body), **kw
+            )
+            return _Status(sent)
+        except Exception as ex:
+            traceback.print_exc()
+            await _report_rich_error("play._status_card", "rich-status", ex)
+    return await message.reply_text(plain)
+
+
 async def _rich_card(
     mystic: Message, message: Message, img: str, cap: str, buttons, *,
     rows=None,
@@ -128,32 +211,39 @@ async def _rich_card(
         await _report_rich_error("play._rich_card", "import", "RICH_AVAILABLE is False (rich_ui import/support issue)")
     elif img and rows:
         table = rich_kv_table(rows)
-        attempts = (
-            ("details+emoji-render",
-             render_custom_emojis(
-                 rich_img(img) + "\n" + _rich_details("Track Info", table))),
-            ("details-no-render",
-             rich_img(img) + "\n" + _rich_details("Track Info", table)),
-            ("plain-table",
-             render_custom_emojis(rich_img(img) + "\n" + table)),
-        )
-        for name, body in attempts:
-            try:
-                # edit_message_text(rich_message=...) Client method hai -> app pe
-                await app.edit_message_text(
-                    chat_id=mystic.chat.id,
-                    message_id=mystic.id,
-                    rich_message=_input_rich(body),
-                    reply_markup=markup,
-                )
-                return
-            except Exception as ex:
-                traceback.print_exc()
-                await _report_rich_error("play._rich_card", name, ex)
-                # v7: Telegram rejected a button style -> retry without colours
-                if "STYLE" in str(ex).upper() and not pb.STYLE_BAD:
-                    pb.STYLE_BAD = True
-                    markup = InlineKeyboardMarkup(buttons)
+        srcs = [img]
+        stable = _norm_yt(img)
+        if stable and stable != img:
+            srcs.append(stable)  # v9: if Telegram finds no image at the raw URL, try the stable one
+        for src in srcs:
+            attempts = (
+                ("details+emoji-render",
+                 render_custom_emojis(
+                     rich_img(src) + "\n" + _rich_details("Track Info", table))),
+                ("details-no-render",
+                 rich_img(src) + "\n" + _rich_details("Track Info", table)),
+                ("plain-table",
+                 render_custom_emojis(rich_img(src) + "\n" + table)),
+            )
+            for name, body in attempts:
+                try:
+                    # edit_message_text(rich_message=...) is a Client method -> call it on app
+                    await app.edit_message_text(
+                        chat_id=mystic.chat.id,
+                        message_id=mystic.id,
+                        rich_message=_input_rich(body),
+                        reply_markup=markup,
+                    )
+                    return
+                except Exception as ex:
+                    traceback.print_exc()
+                    await _report_rich_error("play._rich_card", name, ex)
+                    # v7: Telegram rejected a button style -> retry without colours
+                    if "STYLE" in str(ex).upper() and not pb.STYLE_BAD:
+                        pb.STYLE_BAD = True
+                        markup = InlineKeyboardMarkup(buttons)
+                    if "RICH_MESSAGE_PHOTO" in str(ex):
+                        break  # the image is the problem, not the layout -> next image URL
 
     cap = render_custom_emojis(cap)
     try:
@@ -205,9 +295,7 @@ async def play_commnd(
     url,
     fplay,
 ):
-    mystic = await message.reply_text(
-        _["play_2"].format(channel) if channel else _["play_1"]
-    )
+    mystic = await _status_card(message, _, channel, video)  # v9: rich "Searching" card
     plist_id = None
     slider = None
     plist_type = None

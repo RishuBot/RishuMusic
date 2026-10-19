@@ -1,32 +1,4 @@
-# ============================================================
-# stream.py — v22   (repo version was v15; SHOW_KB_DL_ROW stays False as in your repo)
-# CHANGELOG (v21 -> v22):
-#   - The last plain "added to queue" text (link / index streams) is a rich card too, so every
-#     "Music on streaming 1 / 2 ..." text message is now the table card.
-# CHANGELOG (v20 -> v21):
-#   - "🐢 Slow step: download" DM now also says where the time went: which source answered,
-#     how long the API made us wait, how long the file transfer took, and the size.
-# CHANGELOG (v19 -> v20):
-#   - "Added to queue" (a song is already playing and another one is requested) is now a rich
-#     card: thumbnail + "➕ Added to Queue" heading + table (Title, Duration, Requested By,
-#     Position, Mode). Plain text fallback if the rich card is refused. (YouTube, live,
-#     SoundCloud and Telegram-file adds; link/index adds keep the old text.)
-# CHANGELOG (v18 -> v19):
-#   - Thumbnail upload for the card is capped at 4 s (litterbox + uguu race, first wins); after 2
-#     failures in a row it pauses for 5 min and the card uses the YouTube thumbnail at once.
-#     CARD_UPLOAD=0 in config.py disables uploading.
-#   - Slow-step watcher: download / join_call / thumbnail / card slower than SLOW_REPORT_SECONDS
-#     (config.py, default 6 s) sends a DM to OWNER_ID naming the step and the time.
-# CHANGELOG (v17 -> v18):
-#   - Track Info table has a new "🎧 Mode" row: Video when a video is streaming
-#     in the voice chat, otherwise Audio.
-# CHANGELOG (v15 -> v17):
-#   - v16: play card keyboard: YT-API button -> "Autoplay: ON/OFF" toggle + all
-#     buttons coloured (utils/play_buttons.py). If Telegram rejects a style the
-#     card is resent without colours.
-#   - v17: "added to queue" messages and the index card get coloured buttons too
-#     (5 places).
-# ============================================================
+
 import asyncio
 import os
 import re

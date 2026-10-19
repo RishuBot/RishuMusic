@@ -1,38 +1,4 @@
-# ============================================================
-# RishuMusic/utils/autoplay/ai.py — v5
-#   v5 (after the Owner DM "gemini HTTP 404 | groq: empty answer | pollinations HTTP 401"):
-#     - Gemini: gemini-2.5-flash-lite was retired -> tries gemini-flash-lite-latest (alias that never
-#       retires), gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-flash-latest; a 404 model is
-#       skipped for 6 h, and if all fail it asks Google's own model list.
-#     - Groq: tries llama-3.1-8b-instant, llama-3.3-70b-versatile, gpt-oss-20b (low reasoning);
-#       an EMPTY answer now moves on to the next model; falls back to Groq's own model list.
-#     - Pollinations now needs a key (HTTP 401) -> only used when POLLINATIONS_KEY is set.
-#     - Error text from the API is kept, so the Owner DM shows the real reason.
-#   (v4 line follows)
-# RishuMusic/utils/autoplay/ai.py — v4   (v4: avoid-list of recently played songs in the prompt + cache key,
-#   asks for 8 names, LAST = why AI worked / failed)
-# (v3 = 8 s cap)   (v3: whole AI step capped at 8 s, 6 s per provider)
-# (v2 = config.py settings)
-#
-# AI picks 5 songs related to the one that is playing. It only returns NAMES
-# ("Song - Artist"); related.py then searches each name on YouTube and the
-# normal prefetch downloads them (YouTube.download = your API + fallback).
-# So the AI can never break playback: if every AI provider fails, related.py
-# silently uses the old method (YouTube search + YouTube Mix).
-#
-# v2: keys/settings are now imported from config.py (fallback: os.environ).
-#     config.py me ye add kar do (sab optional):
-#         GEMINI_API_KEY   = getenv("GEMINI_API_KEY", "")
-#         GEMINI_MODEL     = getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-#         GROQ_API_KEY     = getenv("GROQ_API_KEY", "")
-#         GROQ_MODELS      = getenv("GROQ_MODELS", "llama-3.1-8b-instant,openai/gpt-oss-20b")
-#         POLLINATIONS_KEY = getenv("POLLINATIONS_KEY", "")
-#         AI_AUTOPLAY      = getenv("AI_AUTOPLAY", "1")
-#
-# Providers order (provider with no key is skipped):
-#   1) Gemini  2) Groq  3) Pollinations (no key needed)
-# A failing provider is benched for 90 s.
-# ============================================================
+
 
 import asyncio
 import json

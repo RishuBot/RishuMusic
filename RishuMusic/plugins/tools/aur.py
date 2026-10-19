@@ -10,8 +10,7 @@ from gtts import gTTS
 from pyrogram import filters
 from pyrogram.enums import ChatAction
 
-from RishuMusic import app  # v2: VIPMUSIC -> RishuMusic (agar ye VIPMUSIC bot me daal rahe ho to wapas badal do)
-# v2: autoplay/ai.py se keys, model lists aur dead-model state reuse
+from RishuMusic import app  
 from RishuMusic.utils.autoplay.ai import (
     DEAD_SECONDS, GEMINI_KEY, GEMINI_MODELS, GEMINI_URL,
     GROQ_KEY, GROQ_MODELS, GROQ_URL, POLL_KEY,

@@ -16,6 +16,10 @@ from pyrogram import filters
 # v3: load .env from the same folder as config.py, overriding empty/old VPS values
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 
+# v4: blank values in .env (e.g. `API_ID=`) count as "not set", so the defaults apply
+for _k, _v in list(os.environ.items()):
+    if _v.strip() == "":
+        del os.environ[_k]
 # Get this value from my.telegram.org/apps
 API_ID = int(getenv("API_ID","14050586"))
 API_HASH = getenv("API_HASH","42a60d9c657b106370c79bb0a8ac560c")

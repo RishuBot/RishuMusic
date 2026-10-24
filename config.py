@@ -1,10 +1,20 @@
+# ============================================================
+# config.py — v3
+#   v3 changes (everything else is your old file):
+#     - added: import os + `from dotenv import load_dotenv` (was missing -> NameError)
+#     - load_dotenv() now loads the .env next to config.py, with override=True (VPS-safe)
+#     - AUTO_LEAVING_ASSISTANT: "False" in .env now really means False
+#   NOTE: the file must be named `.env` (NOT sample.env): cp sample.env .env
+# ============================================================
+import os  # v3
 import re
-# config.py — v2 (sirf load_dotenv wali line badli)
-import os  # v2
-load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)  # v2
+from os import getenv
+
+from dotenv import load_dotenv  # v3
 from pyrogram import filters
 
-load_dotenv()
+# v3: load .env from the same folder as config.py, overriding empty/old VPS values
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 
 # Get this value from my.telegram.org/apps
 API_ID = int(getenv("API_ID","14050586"))
@@ -61,7 +71,8 @@ SUPPORT_CHAT = getenv("SUPPORT_CHAT", "https://t.me/RishuSupport")
 
 
 # Set this to True if you want the assistant to automatically leave chats after an interval
-AUTO_LEAVING_ASSISTANT = bool(getenv("AUTO_LEAVING_ASSISTANT", True))
+# v3: was bool(getenv(..., True)) -> "False" in .env still gave True
+AUTO_LEAVING_ASSISTANT = getenv("AUTO_LEAVING_ASSISTANT", "True").strip().lower() in ("1", "true", "yes", "on")
 ASSISTANT_LEAVE_TIME = int(getenv("ASSISTANT_LEAVE_TIME",  5400))
 
 
@@ -105,7 +116,7 @@ file_cache: dict[str, float] = {}
 START_IMG_URL = ["https://te.legra.ph/file/5fd13f2cc0d03bce9f7f2.jpg",
                  "https://te.legra.ph/file/c15d01b3e6b40ea141dc9.jpg",
                  "https://te.legra.ph/file/5fd13f2cc0d03bce9f7f2.jpg"]
-    
+
 PING_IMG_URL = getenv(
     "PING_IMG_URL", "https://telegra.ph/file/87f680aead03443f291b0.jpg"
 )

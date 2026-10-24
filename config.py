@@ -1,7 +1,7 @@
 import re
-from os import getenv
-
-from dotenv import load_dotenv
+# config.py — v2 (sirf load_dotenv wali line badli)
+import os  # v2
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)  # v2
 from pyrogram import filters
 
 load_dotenv()

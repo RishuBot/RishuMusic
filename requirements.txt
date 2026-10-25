@@ -1,4 +1,4 @@
-gTTS
+
 Kurigram>=2.2.26
 aiofiles
 aiohttp
@@ -33,3 +33,4 @@ openai
 pykeyboard
 numpy
 PyGithub
+gTTS
